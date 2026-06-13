@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Customers — MINI ERP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <link href="/static/css/style.css" rel="stylesheet">
+  
+</head>
+<body>
+<div class="page-loader" id="pageLoader">
+  <div style="text-align:center">
+    <div style="width:48px;height:48px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:1.4rem;color:#fff;"><i class="fas fa-industry"></i></div>
+    <div class="loader-ring"></div>
+  </div>
+</div>
+<div id="sidebar-container"></div>
+<div class="main-wrapper">
+  <div id="topbar-container"></div>
+  <main class="main-content" id="appContent">
+    <div class="empty-state"><i class="fas fa-spinner fa-spin" style="opacity:1;font-size:2rem;color:var(--primary)"></i><h5 style="margin-top:1rem">Loading...</h5></div>
+  </main>
+</div>
+<div id="modal-container"></div>
+<script src="/static/js/app.js"></script>
+<script>
+window.addEventListener('DOMContentLoaded', () => {
+  if (!initPage('customers', 'Customers')) return;
+  initModule();
+});
+
+let currentPage = 1, searchQ = '', currentId = null;
+
+function initModule() {
+  document.getElementById('appContent').innerHTML = `
+    <div class="page-header fade-in">
+      <div class="page-header-left"><h1>Customers</h1><p>Manage customer accounts</p></div>
+      <button class="btn btn-primary" onclick="openModal()"><i class="fas fa-plus"></i> New Customer</button>
+    </div>
+    <div class="card fade-in">
+      <div class="card-header">
+        <div class="search-bar"><i class="fas fa-search"></i><input type="text" id="searchInput" placeholder="Search customers..." oninput="onSearch(this.value)"></div>
+      </div>
+      <div id="tableWrap" class="card-body p-0"></div>
+      <div id="pagination"></div>
+    </div>
+    <div class="modal" id="custModal">
+      <div class="modal-backdrop" onclick="closeModal()"></div>
+      <div class="modal-dialog modal-lg">
+        <div class="modal-header"><div class="modal-title" id="modalTitle">New Customer</div><button class="modal-close" onclick="closeModal()">x</button></div>
+        <div class="modal-body">
+          <div class="grid grid-2">
+            <div class="form-group"><label class="form-label">Company Name *</label><input class="form-control" id="fCompany"></div>
+            <div class="form-group"><label class="form-label">Contact Name</label><input class="form-control" id="fContact"></div>
+            <div class="form-group"><label class="form-label">Email</label><input class="form-control" id="fEmail" type="email"></div>
+            <div class="form-group"><label class="form-label">Phone</label><input class="form-control" id="fPhone"></div>
+            <div class="form-group"><label class="form-label">GST Number</label><input class="form-control" id="fGst"></div>
+            <div class="form-group"><label class="form-label">City</label><input class="form-control" id="fCity"></div>
+          </div>
+          <div class="form-group"><label class="form-label">Address</label><textarea class="form-control" id="fAddr" rows="2"></textarea></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary" id="saveBtn" onclick="save()"><i class="fas fa-save"></i> Save</button>
+        </div>
+      </div>
+    </div>`;
+  loadData(1);
+}
+
+let searchTimer;
+function onSearch(v) { clearTimeout(searchTimer); searchTimer = setTimeout(()=>{ searchQ=v; loadData(1); },400); }
+
+async function loadData(page=1) {
+  currentPage = page;
+  document.getElementById('tableWrap').innerHTML = `<div class="empty-state"><i class="fas fa-spinner fa-spin" style="opacity:1;color:var(--primary)"></i></div>`;
+  try {
+    const data = await API.get('/sales/customers', { page, page_size: 15, search: searchQ });
+    const items = data?.items || data?.customers || [];
+    const meta  = data?.meta || data?.pagination || {};
+    if (!items.length) { document.getElementById('tableWrap').innerHTML=`<div class="empty-state"><i class="fas fa-users"></i><h5>No customers yet</h5><button class="btn btn-primary" onclick="openModal()"><i class="fas fa-plus"></i> New Customer</button></div>`; return; }
+    document.getElementById('tableWrap').innerHTML = `
+      <div class="table-responsive"><table class="table">
+        <thead><tr><th>Code</th><th>Company</th><th>Contact</th><th>Email</th><th>Phone</th><th>City</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>${items.map(c=>`<tr>
+          <td><span style="font-family:monospace;color:var(--primary);font-size:.8rem">${c.customer_code||''}</span></td>
+          <td style="font-weight:700">${c.company_name}</td>
+          <td style="color:var(--text-secondary)">${c.contact_name||'—'}</td>
+          <td>${c.email||'—'}</td>
+          <td>${c.phone||'—'}</td>
+          <td>${c.city||'—'}</td>
+          <td>${UI.badge(c.is_active?'active':'inactive')}</td>
+          <td><div class="table-actions">
+            <button class="btn btn-sm btn-outline" onclick="openModal(${c.id})" title="Edit"><i class="fas fa-pencil"></i></button>
+            <button class="btn btn-sm btn-danger" onclick="del(${c.id},'${c.company_name.replace(/'/g,"")}')" title="Delete"><i class="fas fa-trash"></i></button>
+          </div></td>
+        </tr>`).join('')}</tbody>
+      </table></div>`;
+    UI.renderPagination('pagination', { page:meta.page||page, pages:meta.pages||1, total:meta.total||items.length }, 'loadData');
+  } catch(e) { document.getElementById('tableWrap').innerHTML=`<div class="empty-state"><i class="fas fa-exclamation-circle"></i><h5>${e.message}</h5></div>`; }
+}
+
+async function openModal(id=null) {
+  currentId = id;
+  document.getElementById('modalTitle').textContent = id ? 'Edit Customer' : 'New Customer';
+  if (id) {
+    try {
+      const c = await API.get(`/sales/customers/${id}`);
+      document.getElementById('fCompany').value = c.company_name||'';
+      document.getElementById('fContact').value = c.contact_name||'';
+      document.getElementById('fEmail').value   = c.email||'';
+      document.getElementById('fPhone').value   = c.phone||'';
+      document.getElementById('fGst').value     = c.gst_number||'';
+      document.getElementById('fCity').value    = c.city||'';
+      document.getElementById('fAddr').value    = c.address||'';
+    } catch(e) { Toast.error(e.message); return; }
+  } else { ['fCompany','fContact','fEmail','fPhone','fGst','fCity','fAddr'].forEach(i=>document.getElementById(i).value=''); }
+  document.getElementById('custModal').classList.add('show');
+}
+function closeModal() { document.getElementById('custModal').classList.remove('show'); }
+
+async function save() {
+  const btn = document.getElementById('saveBtn');
+  const body = { company_name:document.getElementById('fCompany').value.trim(), contact_name:document.getElementById('fContact').value.trim(), email:document.getElementById('fEmail').value.trim(), phone:document.getElementById('fPhone').value.trim(), gst_number:document.getElementById('fGst').value.trim(), city:document.getElementById('fCity').value.trim(), address:document.getElementById('fAddr').value.trim() };
+  if (!body.company_name) { Toast.error('Company name required'); return; }
+  Loader.btn(btn, true);
+  try {
+    if (currentId) await API.put(`/sales/customers/${currentId}`, body);
+    else await API.post('/sales/customers', body);
+    Toast.success(currentId ? 'Customer updated!' : 'Customer created!');
+    closeModal(); loadData(currentPage);
+  } catch(e) { Toast.error(e.message); } finally { Loader.btn(btn, false); }
+}
+
+async function del(id, name) {
+  if (!confirm(`Delete "${name}"?`)) return;
+  try { await API.delete(`/sales/customers/${id}`); Toast.success('Deleted'); loadData(currentPage); } catch(e) { Toast.error(e.message); }
+}
+
+</script>
+</body>
+</html>

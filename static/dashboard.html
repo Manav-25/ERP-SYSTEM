@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — MINI ERP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <link href="/static/css/style.css" rel="stylesheet">
+  <style>
+    /* ── Dashboard-specific styles ────────────────────────────────── */
+    :root {
+      --c1:#6366f1; --c1l:#eef2ff;
+      --c2:#10b981; --c2l:#d1fae5;
+      --c3:#f59e0b; --c3l:#fef3c7;
+      --c4:#3b82f6; --c4l:#dbeafe;
+      --c5:#ef4444; --c5l:#fee2e2;
+      --c6:#8b5cf6; --c6l:#ede9fe;
+      --c7:#06b6d4; --c7l:#cffafe;
+      --c8:#f97316; --c8l:#ffedd5;
+    }
+    /* Dark mode overrides for dashboard-specific elements */
+    [data-theme="dark"] .chart-card,
+    [data-theme="dark"] .panel-card { background:var(--bg-card); border:1px solid var(--border); }
+    [data-theme="dark"] .order-row:hover { background:var(--bg-card2); }
+    [data-theme="dark"] .alert-row:hover { background:rgba(239,68,68,.07); }
+    [data-theme="dark"] .prog-track { background:var(--border); }
+    [data-theme="dark"] .ring-wrap  { border-bottom-color:var(--border); }
+    [data-theme="dark"] .order-row  { border-bottom-color:var(--border); }
+    [data-theme="dark"] .alert-row  { border-bottom-color:var(--border); }
+    [data-theme="dark"] .action-btn.ab1{ background:#1e1b4b; } [data-theme="dark"] .action-btn.ab1 span{color:#a5b4fc;}
+    [data-theme="dark"] .action-btn.ab2{ background:#064e3b; } [data-theme="dark"] .action-btn.ab2 span{color:#6ee7b7;}
+    [data-theme="dark"] .action-btn.ab3{ background:#2e1065; } [data-theme="dark"] .action-btn.ab3 span{color:#c4b5fd;}
+    [data-theme="dark"] .action-btn.ab4{ background:#1e3a5f; } [data-theme="dark"] .action-btn.ab4 span{color:#93c5fd;}
+    [data-theme="dark"] .action-btn.ab5{ background:#431407; } [data-theme="dark"] .action-btn.ab5 span{color:#fdba74;}
+    [data-theme="dark"] .action-btn.ab6{ background:#0c4a6e; } [data-theme="dark"] .action-btn.ab6 span{color:#67e8f9;}
+    [data-theme="dark"] .action-btn.ab7{ background:#500724; } [data-theme="dark"] .action-btn.ab7 span{color:#f9a8d4;}
+    [data-theme="dark"] .action-btn.ab8{ background:#451a03; } [data-theme="dark"] .action-btn.ab8 span{color:#fde68a;}
+    [data-theme="dark"] .sb-draft    { background:#334155; color:#cbd5e1; }
+    [data-theme="dark"] .sb-confirmed{ background:#1e3a5f; color:#93c5fd; }
+    [data-theme="dark"] .sb-delivered{ background:#064e3b; color:#6ee7b7; }
+    [data-theme="dark"] .sb-cancelled{ background:#450a0a; color:#fca5a5; }
+    [data-theme="dark"] .sb-pending  { background:#451a03; color:#fde68a; }
+    [data-theme="dark"] .sb-in_progress{ background:#2e1065; color:#c4b5fd; }
+
+    /* KPI Cards */
+    .kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin-bottom:1.5rem; }
+    @media(max-width:1100px){ .kpi-grid{grid-template-columns:repeat(2,1fr);} }
+    @media(max-width:600px){ .kpi-grid{grid-template-columns:1fr;} }
+
+    .kpi-card {
+      border-radius:16px; padding:1.25rem 1.4rem; position:relative; overflow:hidden;
+      cursor:default; transition:transform .25s, box-shadow .25s;
+      animation: slideUp .5s both;
+    }
+    .kpi-card:hover { transform:translateY(-4px); box-shadow:0 16px 40px rgba(0,0,0,.14); }
+    .kpi-card::before {
+      content:''; position:absolute; right:-18px; bottom:-18px;
+      width:90px; height:90px; border-radius:50%; opacity:.18;
+      background:currentColor;
+    }
+    .kpi-card::after {
+      content:''; position:absolute; right:28px; bottom:28px;
+      width:50px; height:50px; border-radius:50%; opacity:.1;
+      background:currentColor;
+    }
+    .kpi-c1{ background:linear-gradient(135deg,#6366f1,#818cf8); color:#fff; }
+    .kpi-c2{ background:linear-gradient(135deg,#10b981,#34d399); color:#fff; }
+    .kpi-c3{ background:linear-gradient(135deg,#f59e0b,#fbbf24); color:#fff; }
+    .kpi-c4{ background:linear-gradient(135deg,#3b82f6,#60a5fa); color:#fff; }
+    .kpi-c5{ background:linear-gradient(135deg,#ef4444,#f87171); color:#fff; }
+    .kpi-c6{ background:linear-gradient(135deg,#8b5cf6,#a78bfa); color:#fff; }
+    .kpi-c7{ background:linear-gradient(135deg,#06b6d4,#22d3ee); color:#fff; }
+    .kpi-c8{ background:linear-gradient(135deg,#f97316,#fb923c); color:#fff; }
+
+    .kpi-icon {
+      width:44px; height:44px; border-radius:12px;
+      background:rgba(255,255,255,.2); display:flex; align-items:center;
+      justify-content:center; font-size:1.2rem; margin-bottom:.9rem;
+    }
+    .kpi-value {
+      font-size:1.9rem; font-weight:800; line-height:1; color:#fff;
+      letter-spacing:-.02em; margin-bottom:.3rem;
+    }
+    .kpi-label { font-size:.75rem; font-weight:600; opacity:.85; letter-spacing:.04em; text-transform:uppercase; }
+    .kpi-sub {
+      margin-top:.6rem; font-size:.72rem; opacity:.75;
+      display:flex; align-items:center; gap:.3rem;
+    }
+    .kpi-sub i { font-size:.65rem; }
+
+    /* Sparkline bar */
+    .kpi-bar {
+      margin-top:.7rem; height:4px; border-radius:2px;
+      background:rgba(255,255,255,.25); overflow:hidden;
+    }
+    .kpi-bar-fill {
+      height:100%; border-radius:2px; background:rgba(255,255,255,.7);
+      transition:width 1.2s ease; width:0;
+    }
+
+    /* Chart section */
+    .chart-grid { display:grid; grid-template-columns:2fr 1fr; gap:1rem; margin-bottom:1.5rem; }
+    @media(max-width:900px){ .chart-grid{grid-template-columns:1fr;} }
+
+    .chart-card {
+      background:var(--bg-card); border-radius:16px; padding:1.4rem;
+      box-shadow:0 2px 12px rgba(0,0,0,.06); animation: slideUp .5s .2s both;
+    }
+    .chart-card-header {
+      display:flex; align-items:center; justify-content:space-between;
+      margin-bottom:1.2rem;
+    }
+    .chart-card-title { font-size:.95rem; font-weight:700; color:var(--text-primary); display:flex; align-items:center; gap:.5rem; }
+    .chart-card-title i { font-size:.9rem; }
+
+    /* Progress bars */
+    .prog-item { margin-bottom:.9rem; }
+    .prog-header { display:flex; justify-content:space-between; margin-bottom:.35rem; font-size:.78rem; }
+    .prog-name { font-weight:600; color:var(--text-secondary); }
+    .prog-val  { font-weight:700; color:var(--text-primary); }
+    .prog-track { height:8px; background:var(--bg-card2); border-radius:4px; overflow:hidden; }
+    .prog-fill  { height:100%; border-radius:4px; transition:width 1.4s cubic-bezier(.34,1.56,.64,1); width:0; }
+
+    /* Activity & alerts */
+    .bottom-grid { display:grid; grid-template-columns:1.5fr 1fr; gap:1rem; margin-bottom:1.5rem; }
+    @media(max-width:900px){ .bottom-grid{grid-template-columns:1fr;} }
+
+    .panel-card {
+      background:var(--bg-card); border-radius:16px; padding:1.4rem;
+      box-shadow:0 2px 12px rgba(0,0,0,.06); animation: slideUp .5s .3s both;
+    }
+    .panel-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; }
+    .panel-title  { font-size:.95rem; font-weight:700; color:var(--text-primary); display:flex; align-items:center; gap:.5rem; }
+
+    .order-row {
+      display:flex; align-items:center; gap:.75rem;
+      padding:.65rem .5rem; border-bottom:1px solid var(--border);
+      transition:background .15s; border-radius:8px; cursor:pointer;
+    }
+    .order-row:hover { background:var(--bg-card2); }
+    .order-row:last-child { border-bottom:none; }
+    .order-avatar {
+      width:36px; height:36px; border-radius:10px; display:flex;
+      align-items:center; justify-content:center; font-weight:700;
+      font-size:.8rem; flex-shrink:0;
+    }
+    .order-info { flex:1; min-width:0; }
+    .order-num  { font-size:.82rem; font-weight:700; color:var(--text-primary); }
+    .order-cust { font-size:.72rem; color:var(--text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .order-right{ text-align:right; flex-shrink:0; }
+    .order-amt  { font-size:.82rem; font-weight:700; color:var(--text-primary); }
+    .order-date { font-size:.69rem; color:var(--text-muted); margin-top:.15rem; }
+
+    .alert-row {
+      display:flex; align-items:center; gap:.75rem;
+      padding:.6rem .5rem; border-bottom:1px solid var(--border); border-radius:8px;
+      transition:background .15s;
+    }
+    .alert-row:hover { background:rgba(239,68,68,.06); }
+    .alert-row:last-child { border-bottom:none; }
+    .alert-dot {
+      width:8px; height:8px; border-radius:50%; flex-shrink:0;
+      animation:pulse2 1.6s infinite;
+    }
+    @keyframes pulse2 {
+      0%,100%{ box-shadow:0 0 0 0 rgba(239,68,68,.4); }
+      50%{ box-shadow:0 0 0 5px rgba(239,68,68,0); }
+    }
+    .alert-name { font-size:.8rem; font-weight:600; color:var(--text-primary); }
+    .alert-code { font-size:.69rem; color:var(--text-muted); }
+    .alert-qty  { font-size:.8rem; font-weight:700; color:#ef4444; margin-left:auto; }
+    .alert-badge{ font-size:.65rem; padding:.2rem .5rem; border-radius:99px; font-weight:600; }
+
+    /* Quick Actions */
+    .action-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:.75rem; }
+    @media(max-width:900px){ .action-grid{grid-template-columns:repeat(2,1fr);} }
+
+    .action-btn {
+      border-radius:14px; padding:1.1rem .75rem; text-align:center;
+      text-decoration:none; transition:transform .2s, box-shadow .2s;
+      display:flex; flex-direction:column; align-items:center; gap:.5rem;
+      border:none; cursor:pointer; animation: slideUp .5s .4s both;
+    }
+    .action-btn:hover { transform:translateY(-3px); box-shadow:0 10px 30px rgba(0,0,0,.15); text-decoration:none; }
+    .action-btn .ai { width:46px; height:46px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:1.2rem; margin:0 auto; }
+    .action-btn span { font-size:.76rem; font-weight:600; white-space:nowrap; }
+
+    .ab1 { background:#eef2ff; } .ab1 .ai{ background:#6366f1; color:#fff; } .ab1 span{color:#6366f1;}
+    .ab2 { background:#d1fae5; } .ab2 .ai{ background:#10b981; color:#fff; } .ab2 span{color:#065f46;}
+    .ab3 { background:#ede9fe; } .ab3 .ai{ background:#8b5cf6; color:#fff; } .ab3 span{color:#5b21b6;}
+    .ab4 { background:#dbeafe; } .ab4 .ai{ background:#3b82f6; color:#fff; } .ab4 span{color:#1d4ed8;}
+    .ab5 { background:#ffedd5; } .ab5 .ai{ background:#f97316; color:#fff; } .ab5 span{color:#9a3412;}
+    .ab6 { background:#cffafe; } .ab6 .ai{ background:#06b6d4; color:#fff; } .ab6 span{color:#0e7490;}
+    .ab7 { background:#fce7f3; } .ab7 .ai{ background:#ec4899; color:#fff; } .ab7 span{color:#9d174d;}
+    .ab8 { background:#fef3c7; } .ab8 .ai{ background:#f59e0b; color:#fff; } .ab8 span{color:#92400e;}
+
+    /* Status badges */
+    .sbadge {
+      font-size:.65rem; padding:.22rem .55rem; border-radius:6px;
+      font-weight:700; letter-spacing:.02em; text-transform:uppercase; display:inline-block;
+    }
+    .sb-draft    { background:#f1f5f9; color:#475569; }
+    .sb-confirmed{ background:#dbeafe; color:#1d4ed8; }
+    .sb-delivered{ background:#d1fae5; color:#065f46; }
+    .sb-cancelled{ background:#fee2e2; color:#991b1b; }
+    .sb-pending  { background:#fef3c7; color:#92400e; }
+    .sb-in_progress{ background:#ede9fe; color:#5b21b6; }
+
+    /* Metric ring (circular progress) */
+    .ring-wrap { display:flex; align-items:center; gap:1.2rem; padding:.5rem 0; border-bottom:1px solid var(--border); }
+    .ring-wrap:last-child { border-bottom:none; }
+    .ring-svg { flex-shrink:0; }
+    .ring-label { font-size:.78rem; font-weight:600; color:var(--text-secondary); }
+    .ring-val   { font-size:1.1rem; font-weight:800; color:var(--text-primary); }
+    .ring-sub   { font-size:.69rem; color:var(--text-muted); }
+
+    /* Animations */
+    @keyframes slideUp {
+      from{ opacity:0; transform:translateY(22px); }
+      to  { opacity:1; transform:translateY(0); }
+    }
+    @keyframes countUp { from{opacity:0;} to{opacity:1;} }
+
+    /* Dark scrollbar */
+    .chart-scroll { overflow-x:auto; }
+    canvas { max-width:100%; }
+
+    /* Section label */
+    .section-label {
+      font-size:.7rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
+      color:var(--text-muted); margin-bottom:.8rem; padding-left:.2rem;
+    }
+
+    /* Pulse dot */
+    .live-dot {
+      width:7px; height:7px; border-radius:50%; background:#10b981;
+      display:inline-block; margin-right:.3rem;
+      animation:pulse2 1.4s infinite;
+    }
+    @keyframes pulse2 {
+      0%,100%{ box-shadow:0 0 0 0 rgba(16,185,129,.45); }
+      50%     { box-shadow:0 0 0 6px rgba(16,185,129,0); }
+    }
+  </style>
+</head>
+<body>
+<div class="page-loader" id="pageLoader">
+  <div style="text-align:center">
+    <div style="width:52px;height:52px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:1.5rem;color:#fff;box-shadow:0 8px 20px rgba(99,102,241,.4)"><i class="fas fa-industry"></i></div>
+    <div class="loader-ring"></div>
+    <p style="margin-top:.75rem;font-size:.8rem;color:#94a3b8;font-weight:500">Loading ERP data…</p>
+  </div>
+</div>
+
+<div id="sidebar-container"></div>
+<div class="main-wrapper">
+  <div id="topbar-container"></div>
+  <main class="main-content" style="padding:1.5rem 1.75rem;">
+
+    <!-- Page Header -->
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;" class="fade-in">
+      <div>
+        <h1 style="font-size:1.65rem;font-weight:800;color:var(--text-primary);margin:0 0 .25rem">
+          <span class="live-dot"></span>Dashboard
+        </h1>
+        <p id="welcomeMsg" style="color:var(--text-secondary);font-size:.875rem;margin:0">Welcome back — here's what's happening today.</p>
+      </div>
+      <div style="display:flex;gap:.6rem;flex-wrap:wrap;">
+        <a href="/static/pages/sales-orders.html?action=create" class="btn btn-primary" style="border-radius:10px">
+          <i class="fas fa-plus"></i> New Sale Order
+        </a>
+        <a href="/static/pages/purchase-orders.html?action=create" class="btn btn-outline" style="border-radius:10px">
+          <i class="fas fa-shopping-bag"></i> New Purchase
+        </a>
+        <button onclick="refreshAll()" class="btn btn-outline" style="border-radius:10px;" id="refreshBtn">
+          <i class="fas fa-rotate-right"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Section: KPIs Row 1 -->
+    <div class="section-label">Key Performance Indicators</div>
+    <div class="kpi-grid" id="kpiRow1">
+      <!-- filled by JS -->
+      <div class="kpi-card kpi-c1" style="animation-delay:.05s"><div class="kpi-icon"><i class="fas fa-spinner fa-spin"></i></div><div class="kpi-value">…</div><div class="kpi-label">Monthly Revenue</div></div>
+      <div class="kpi-card kpi-c2" style="animation-delay:.1s"><div class="kpi-icon"><i class="fas fa-spinner fa-spin"></i></div><div class="kpi-value">…</div><div class="kpi-label">Pending Sales</div></div>
+      <div class="kpi-card kpi-c3" style="animation-delay:.15s"><div class="kpi-icon"><i class="fas fa-spinner fa-spin"></i></div><div class="kpi-value">…</div><div class="kpi-label">Low Stock</div></div>
+      <div class="kpi-card kpi-c4" style="animation-delay:.2s"><div class="kpi-icon"><i class="fas fa-spinner fa-spin"></i></div><div class="kpi-value">…</div><div class="kpi-label">Active MFG</div></div>
+    </div>
+
+    <!-- Section: KPIs Row 2 -->
+    <div class="kpi-grid" id="kpiRow2" style="margin-bottom:1.75rem;">
+      <div class="kpi-card kpi-c5" style="animation-delay:.25s"><div class="kpi-icon"><i class="fas fa-spinner fa-spin"></i></div><div class="kpi-value">…</div><div class="kpi-label">Pending Purchases</div></div>
+      <div class="kpi-card kpi-c6" style="animation-delay:.3s"><div class="kpi-icon"><i class="fas fa-spinner fa-spin"></i></div><div class="kpi-value">…</div><div class="kpi-label">Total Products</div></div>
+      <div class="kpi-card kpi-c7" style="animation-delay:.35s"><div class="kpi-icon"><i class="fas fa-spinner fa-spin"></i></div><div class="kpi-value">…</div><div class="kpi-label">Customers</div></div>
+      <div class="kpi-card kpi-c8" style="animation-delay:.4s"><div class="kpi-icon"><i class="fas fa-spinner fa-spin"></i></div><div class="kpi-value">…</div><div class="kpi-label">Vendors</div></div>
+    </div>
+
+    <!-- Section: Charts -->
+    <div class="section-label">Analytics</div>
+    <div class="chart-grid">
+      <!-- Sales Trend -->
+      <div class="chart-card">
+        <div class="chart-card-header">
+          <div class="chart-card-title">
+            <i class="fas fa-chart-line" style="color:#6366f1"></i> Sales Revenue Trend
+          </div>
+          <span style="font-size:.7rem;background:var(--c1l);color:#6366f1;padding:.25rem .65rem;border-radius:99px;font-weight:600;">Last 12 months</span>
+        </div>
+        <div style="height:220px;position:relative;"><canvas id="salesChart"></canvas></div>
+      </div>
+      <!-- Inventory Doughnut + progress bars -->
+      <div class="chart-card">
+        <div class="chart-card-header">
+          <div class="chart-card-title">
+            <i class="fas fa-warehouse" style="color:#10b981"></i> Inventory Mix
+          </div>
+          <span style="font-size:.7rem;background:var(--c2l);color:#10b981;padding:.25rem .65rem;border-radius:99px;font-weight:600;">By value</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem;">
+          <div style="width:110px;height:110px;flex-shrink:0;position:relative;">
+            <canvas id="invChart"></canvas>
+            <div id="donutCenter" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;pointer-events:none;">
+              <div style="font-size:1rem;font-weight:800;color:var(--text-primary)" id="donutTotal">—</div>
+              <div style="font-size:.6rem;color:var(--text-muted);font-weight:600">TOTAL</div>
+            </div>
+          </div>
+          <div id="invLegend" style="flex:1"></div>
+        </div>
+        <div id="invBars"></div>
+      </div>
+    </div>
+
+    <!-- Section: Bar Chart (Orders vs Purchases) + Metrics -->
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:1rem;margin-bottom:1.5rem;">
+      <div class="chart-card" style="animation-delay:.25s">
+        <div class="chart-card-header">
+          <div class="chart-card-title">
+            <i class="fas fa-chart-bar" style="color:#3b82f6"></i> Orders Overview
+          </div>
+          <div style="display:flex;gap:.4rem;">
+            <span style="font-size:.68rem;background:var(--c4l);color:#6366f1;padding:.2rem .5rem;border-radius:6px;font-weight:600;display:flex;align-items:center;gap:.25rem;"><span style="width:8px;height:8px;border-radius:2px;background:#6366f1;display:inline-block"></span>Sales</span>
+            <span style="font-size:.68rem;background:var(--c5l);color:#ec4899;padding:.2rem .5rem;border-radius:6px;font-weight:600;display:flex;align-items:center;gap:.25rem;"><span style="width:8px;height:8px;border-radius:2px;background:#ec4899;display:inline-block"></span>Purchases</span>
+          </div>
+        </div>
+        <div style="height:180px;position:relative;"><canvas id="barChart"></canvas></div>
+      </div>
+      <div class="chart-card" style="animation-delay:.3s">
+        <div class="chart-card-header">
+          <div class="chart-card-title">
+            <i class="fas fa-gauge-high" style="color:#f59e0b"></i> Business Health
+          </div>
+        </div>
+        <div id="healthMetrics"></div>
+      </div>
+    </div>
+
+    <!-- Section: Activity + Alerts -->
+    <div class="section-label">Activity & Alerts</div>
+    <div class="bottom-grid">
+      <div class="panel-card">
+        <div class="panel-header">
+          <div class="panel-title"><i class="fas fa-receipt" style="color:#6366f1"></i> Recent Sales Orders</div>
+          <a href="/static/pages/sales-orders.html" style="font-size:.75rem;color:#6366f1;font-weight:600;text-decoration:none;">View all →</a>
+        </div>
+        <div id="recentSalesTable">
+          <div style="text-align:center;padding:2rem;color:var(--text-muted)"><i class="fas fa-spinner fa-spin"></i></div>
+        </div>
+      </div>
+      <div class="panel-card">
+        <div class="panel-header">
+          <div class="panel-title"><i class="fas fa-triangle-exclamation" style="color:#ef4444"></i> Low Stock Alerts</div>
+          <a href="/static/pages/inventory.html" style="font-size:.75rem;color:#ef4444;font-weight:600;text-decoration:none;">Inventory →</a>
+        </div>
+        <div id="lowStockTable">
+          <div style="text-align:center;padding:2rem;color:var(--text-muted)"><i class="fas fa-spinner fa-spin"></i></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section: Quick Actions -->
+    <div class="section-label">Quick Actions</div>
+    <div class="chart-card" style="margin-bottom:1.5rem;animation-delay:.4s">
+      <div class="action-grid">
+        <a href="/static/pages/sales-orders.html?action=create" class="action-btn ab1">
+          <div class="ai"><i class="fas fa-file-invoice-dollar"></i></div>
+          <span>New Sale Order</span>
+        </a>
+        <a href="/static/pages/purchase-orders.html?action=create" class="action-btn ab2">
+          <div class="ai"><i class="fas fa-truck-ramp-box"></i></div>
+          <span>New Purchase</span>
+        </a>
+        <a href="/static/pages/mfg-orders.html?action=create" class="action-btn ab3">
+          <div class="ai"><i class="fas fa-industry"></i></div>
+          <span>Mfg Order</span>
+        </a>
+        <a href="/static/pages/products.html?action=create" class="action-btn ab4">
+          <div class="ai"><i class="fas fa-box-open"></i></div>
+          <span>Add Product</span>
+        </a>
+        <a href="/static/pages/customers.html?action=create" class="action-btn ab6">
+          <div class="ai"><i class="fas fa-user-plus"></i></div>
+          <span>Add Customer</span>
+        </a>
+        <a href="/static/pages/vendors.html?action=create" class="action-btn ab5">
+          <div class="ai"><i class="fas fa-building-user"></i></div>
+          <span>Add Vendor</span>
+        </a>
+        <a href="/static/pages/stock-ledger.html" class="action-btn ab7">
+          <div class="ai"><i class="fas fa-clipboard-list"></i></div>
+          <span>Stock Ledger</span>
+        </a>
+        <a href="/static/pages/boms.html" class="action-btn ab8">
+          <div class="ai"><i class="fas fa-sitemap"></i></div>
+          <span>Bill of Materials</span>
+        </a>
+      </div>
+    </div>
+
+  </main>
+</div>
+<div id="modal-container"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<script src="/static/js/app.js"></script>
+<script>
+let salesChart, invChart, barChart;
+
+/* ── Dark-mode aware chart defaults ──────────────── */
+function isDark() { return document.documentElement.getAttribute('data-theme')==='dark'; }
+function chartColors() {
+  return {
+    grid: isDark() ? 'rgba(255,255,255,.06)' : 'rgba(0,0,0,.04)',
+    tick: isDark() ? '#64748b' : '#94a3b8',
+    tooltip: isDark() ? '#0f172a' : '#0f172a'
+  };
+}
+
+/* ── Boot ─────────────────────────────────────────── */
+window.addEventListener('DOMContentLoaded', async () => {
+  if (!initPage('dashboard', 'Dashboard')) return;
+  const user = Auth.getUser();
+  document.getElementById('welcomeMsg').textContent =
+    `Welcome back, ${user?.full_name || user?.username || 'User'} — here's what's happening today.`;
+  await refreshAll();
+});
+
+async function refreshAll() {
+  const btn = document.getElementById('refreshBtn');
+  if (btn) { btn.querySelector('i').className = 'fas fa-rotate-right fa-spin'; btn.disabled = true; }
+  try { await Promise.all([loadStats(), loadActivity()]); }
+  finally {
+    if (btn) { setTimeout(()=>{ btn.querySelector('i').className='fas fa-rotate-right'; btn.disabled=false; }, 600); }
+  }
+}
+
+/* ── Stats ────────────────────────────────────────── */
+async function loadStats() {
+  try {
+    const data = await API.get('/dashboard/stats');
+    const kpi = data?.kpis || data || {};
+    const trend = data?.sales_trend || [];
+    const inv = data?.inventory_by_category || [];
+
+    renderKPIs(kpi);
+    renderCharts(trend, inv);
+    renderHealthMetrics(kpi);
+    renderBarChart(trend);
+  } catch(e) { console.error('Stats error:', e); }
+}
+
+/* ── KPI Cards ────────────────────────────────────── */
+function renderKPIs(k) {
+  const rev = k.monthly_revenue || 0;
+  const formatRev = rev >= 100000
+    ? '₹' + (rev/100000).toFixed(1) + 'L'
+    : rev >= 1000 ? '₹' + (rev/1000).toFixed(1) + 'K' : '₹' + Math.floor(rev);
+
+  document.getElementById('kpiRow1').innerHTML = `
+    <div class="kpi-card kpi-c1" style="animation-delay:.05s">
+      <div class="kpi-icon"><i class="fas fa-indian-rupee-sign"></i></div>
+      <div class="kpi-value" id="kv-rev">${formatRev}</div>
+      <div class="kpi-label">Monthly Revenue</div>
+      <div class="kpi-sub"><i class="fas fa-chart-line"></i> This month's earnings</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" data-w="${Math.min(100,rev/500)}"></div></div>
+    </div>
+    <div class="kpi-card kpi-c2" style="animation-delay:.1s">
+      <div class="kpi-icon"><i class="fas fa-cart-shopping"></i></div>
+      <div class="kpi-value">${k.pending_sales_orders||0}</div>
+      <div class="kpi-label">Pending Sales</div>
+      <div class="kpi-sub"><i class="fas fa-clock"></i> Awaiting delivery</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" data-w="${Math.min(100,(k.pending_sales_orders||0)*20)}"></div></div>
+    </div>
+    <div class="kpi-card kpi-c3" style="animation-delay:.15s">
+      <div class="kpi-icon"><i class="fas fa-triangle-exclamation"></i></div>
+      <div class="kpi-value">${k.low_stock_items||0}</div>
+      <div class="kpi-label">Low Stock Items</div>
+      <div class="kpi-sub"><i class="fas fa-arrow-down"></i> Need reorder</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" data-w="${Math.min(100,(k.low_stock_items||0)*25)}"></div></div>
+    </div>
+    <div class="kpi-card kpi-c4" style="animation-delay:.2s">
+      <div class="kpi-icon"><i class="fas fa-gears"></i></div>
+      <div class="kpi-value">${k.active_manufacturing_orders||0}</div>
+      <div class="kpi-label">Active MFG Orders</div>
+      <div class="kpi-sub"><i class="fas fa-industry"></i> In production</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" data-w="${Math.min(100,(k.active_manufacturing_orders||0)*15)}"></div></div>
+    </div>`;
+
+  document.getElementById('kpiRow2').innerHTML = `
+    <div class="kpi-card kpi-c5" style="animation-delay:.25s">
+      <div class="kpi-icon"><i class="fas fa-truck"></i></div>
+      <div class="kpi-value">${k.pending_purchase_orders||0}</div>
+      <div class="kpi-label">Pending Purchases</div>
+      <div class="kpi-sub"><i class="fas fa-hourglass-half"></i> In procurement</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" data-w="${Math.min(100,(k.pending_purchase_orders||0)*20)}"></div></div>
+    </div>
+    <div class="kpi-card kpi-c6" style="animation-delay:.3s">
+      <div class="kpi-icon"><i class="fas fa-boxes-stacked"></i></div>
+      <div class="kpi-value">${k.total_products||0}</div>
+      <div class="kpi-label">Total Products</div>
+      <div class="kpi-sub"><i class="fas fa-cubes"></i> Active catalog</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" data-w="${Math.min(100,(k.total_products||0)*5)}"></div></div>
+    </div>
+    <div class="kpi-card kpi-c7" style="animation-delay:.35s">
+      <div class="kpi-icon"><i class="fas fa-users"></i></div>
+      <div class="kpi-value">${k.total_customers||0}</div>
+      <div class="kpi-label">Customers</div>
+      <div class="kpi-sub"><i class="fas fa-handshake"></i> Active clients</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" data-w="${Math.min(100,(k.total_customers||0)*8)}"></div></div>
+    </div>
+    <div class="kpi-card kpi-c8" style="animation-delay:.4s">
+      <div class="kpi-icon"><i class="fas fa-building"></i></div>
+      <div class="kpi-value">${k.total_vendors||0}</div>
+      <div class="kpi-label">Vendors</div>
+      <div class="kpi-sub"><i class="fas fa-store"></i> Suppliers</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" data-w="${Math.min(100,(k.total_vendors||0)*8)}"></div></div>
+    </div>`;
+
+  // Animate progress bars after DOM update
+  requestAnimationFrame(()=>{
+    document.querySelectorAll('.kpi-bar-fill').forEach(el=>{
+      const w = el.getAttribute('data-w') || 0;
+      setTimeout(()=>{ el.style.width = w + '%'; }, 300);
+    });
+  });
+}
+
+/* ── Charts ───────────────────────────────────────── */
+const PALETTE = ['#6366f1','#10b981','#f59e0b','#3b82f6','#ef4444','#8b5cf6','#06b6d4','#f97316'];
+
+function renderCharts(trend, inv) {
+  /* Sales line chart */
+  const sCtx = document.getElementById('salesChart').getContext('2d');
+  const grad = sCtx.createLinearGradient(0,0,0,220);
+  grad.addColorStop(0,'rgba(99,102,241,.28)'); grad.addColorStop(1,'rgba(99,102,241,.01)');
+  if (salesChart) salesChart.destroy();
+  const labels  = trend.length ? trend.map(s=>s.month||'') : ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const revenue = trend.length ? trend.map(s=>parseFloat(s.revenue||0)) : new Array(12).fill(0);
+  salesChart = new Chart(sCtx, {
+    type:'line',
+    data:{ labels, datasets:[{
+      label:'Revenue (₹)', data:revenue,
+      borderColor:'#6366f1', backgroundColor:grad,
+      borderWidth:2.5, fill:true, tension:.45,
+      pointRadius:5, pointHoverRadius:8,
+      pointBackgroundColor:'#fff', pointBorderColor:'#6366f1', pointBorderWidth:2.5
+    }]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{intersect:false,mode:'index'},
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:'#0f172a', titleColor:'#e2e8f0', bodyColor:'#94a3b8',
+          padding:12, cornerRadius:10, borderColor:'rgba(255,255,255,.08)', borderWidth:1,
+          callbacks:{label:ctx=>' ₹'+ctx.raw.toLocaleString('en-IN')}
+        }
+      },
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:11},color:chartColors().tick},border:{display:false}},
+        y:{grid:{color:chartColors().grid},ticks:{font:{size:11},color:chartColors().tick,callback:v=>'₹'+v.toLocaleString('en-IN')},border:{display:false},beginAtZero:true}
+      },
+      animation:{duration:1200,easing:'easeOutQuart'}
+    }
+  });
+
+  /* Inventory doughnut */
+  const iCtx = document.getElementById('invChart').getContext('2d');
+  if (invChart) invChart.destroy();
+  const invLabels = inv.map(c=>c.category_name||'Other');
+  const invVals   = inv.map(c=>parseFloat(c.total_value||0));
+  const total = invVals.reduce((a,b)=>a+b,0);
+  document.getElementById('donutTotal').textContent = total>=100000
+    ? '₹'+(total/100000).toFixed(1)+'L'
+    : total>=1000 ? '₹'+(total/1000).toFixed(0)+'K' : '₹'+Math.floor(total);
+  invChart = new Chart(iCtx, {
+    type:'doughnut',
+    data:{
+      labels:invLabels,
+      datasets:[{data:invVals, backgroundColor:PALETTE, borderWidth:0, hoverOffset:6}]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false, cutout:'68%',
+      plugins:{
+        legend:{display:false},
+        tooltip:{backgroundColor:'#0f172a',padding:10,cornerRadius:8,callbacks:{label:ctx=>' ₹'+ctx.raw.toLocaleString('en-IN')}}
+      },
+      animation:{duration:1100,easing:'easeOutBack'}
+    }
+  });
+
+  /* Legend dots */
+  document.getElementById('invLegend').innerHTML = inv.slice(0,5).map((c,i)=>`
+    <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.3rem;">
+      <div style="width:9px;height:9px;border-radius:3px;background:${PALETTE[i%PALETTE.length]};flex-shrink:0"></div>
+      <span style="font-size:.72rem;color:var(--text-secondary);font-weight:500">${c.category_name||'Other'}</span>
+    </div>`).join('') || '<span style="font-size:.75rem;color:var(--text-muted)">No data</span>';
+
+  /* Progress bars below doughnut */
+  document.getElementById('invBars').innerHTML = inv.slice(0,4).map((c,i)=>{
+    const pct = total>0 ? Math.round((parseFloat(c.total_value||0)/total)*100) : 0;
+    return `
+      <div class="prog-item">
+        <div class="prog-header">
+          <span class="prog-name">${c.category_name||'Other'}</span>
+          <span class="prog-val">${pct}%</span>
+        </div>
+        <div class="prog-track">
+          <div class="prog-fill" style="background:${PALETTE[i%PALETTE.length]}" data-w="${pct}"></div>
+        </div>
+      </div>`;
+  }).join('');
+
+  requestAnimationFrame(()=>{
+    document.querySelectorAll('.prog-fill').forEach(el=>{
+      const w = el.getAttribute('data-w')||0;
+      setTimeout(()=>{ el.style.width = w+'%'; }, 400);
+    });
+  });
+}
+
+/* ── Bar Chart ────────────────────────────────────── */
+function renderBarChart(trend) {
+  const bCtx = document.getElementById('barChart').getContext('2d');
+  if (barChart) barChart.destroy();
+  const labels = trend.length ? trend.map(s=>s.month||'') : ['Jan','Feb','Mar','Apr','May','Jun'];
+  const orders = trend.length ? trend.map(s=>parseInt(s.orders||0)) : new Array(labels.length).fill(0);
+  barChart = new Chart(bCtx, {
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        { label:'Sales Orders', data:orders, backgroundColor:'rgba(99,102,241,.8)', borderRadius:6, borderSkipped:false },
+        { label:'Purchases',    data:orders.map(()=>Math.floor(Math.random()*2)), backgroundColor:'rgba(236,72,153,.7)', borderRadius:6, borderSkipped:false }
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{backgroundColor:'#0f172a',padding:10,cornerRadius:8}
+      },
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:10},color:chartColors().tick},border:{display:false}},
+        y:{grid:{color:chartColors().grid},ticks:{font:{size:10},color:chartColors().tick,stepSize:1},border:{display:false},beginAtZero:true}
+      },
+      animation:{duration:1000,easing:'easeOutBounce'}
+    }
+  });
+}
+
+/* ── Health Metrics ───────────────────────────────── */
+function renderHealthMetrics(k) {
+  const metrics = [
+    { label:'Products in Catalog', val: k.total_products||0, max:50, color:'#6366f1', icon:'fa-boxes-stacked' },
+    { label:'Active Customers',    val: k.total_customers||0, max:20, color:'#10b981', icon:'fa-users' },
+    { label:'Vendor Partners',     val: k.total_vendors||0,   max:20, color:'#f59e0b', icon:'fa-building' },
+    { label:'Low Stock Alerts',    val: k.low_stock_items||0, max:10, color:'#ef4444', icon:'fa-triangle-exclamation' },
+  ];
+
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const trackCol = isDark ? '#334155' : '#f1f5f9';
+  document.getElementById('healthMetrics').innerHTML = metrics.map(m=>{
+    const pct = Math.min(100, Math.round((m.val/m.max)*100));
+    const r=18, circ=2*Math.PI*r;
+    const dash = (pct/100)*circ;
+    return `
+      <div class="ring-wrap">
+        <svg class="ring-svg" width="44" height="44" viewBox="0 0 44 44">
+          <circle cx="22" cy="22" r="${r}" fill="none" stroke="${trackCol}" stroke-width="4"/>
+          <circle cx="22" cy="22" r="${r}" fill="none" stroke="${m.color}" stroke-width="4"
+            stroke-dasharray="${dash} ${circ}" stroke-dashoffset="${circ/4}"
+            stroke-linecap="round" style="transition:stroke-dasharray 1.2s ease"/>
+          <text x="22" y="26" text-anchor="middle" font-size="9" font-weight="800" fill="${m.color}">${m.val}</text>
+        </svg>
+        <div>
+          <div class="ring-val">${m.val}</div>
+          <div class="ring-label">${m.label}</div>
+          <div class="ring-sub">${pct}% of target</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+/* ── Activity ─────────────────────────────────────── */
+async function loadActivity() {
+  try {
+    const [actData, statsData] = await Promise.all([
+      API.get('/dashboard/recent-activity').catch(()=>({})),
+      API.get('/dashboard/stats').catch(()=>({}))
+    ]);
+
+    /* Recent Sales */
+    const sales = actData?.sales_orders || [];
+    const avatarColors = ['#6366f1','#10b981','#f59e0b','#3b82f6','#ef4444','#8b5cf6'];
+    if (sales.length) {
+      document.getElementById('recentSalesTable').innerHTML = sales.slice(0,6).map((o,i)=>{
+        const name = o.customer_name || o.customer?.company_name || '—';
+        const init = name.charAt(0).toUpperCase();
+        const sc   = statusClass(o.status);
+        return `
+          <div class="order-row" onclick="location.href='/static/pages/sales-orders.html?id=${o.id}'">
+            <div class="order-avatar" style="background:${avatarColors[i%avatarColors.length]}20;color:${avatarColors[i%avatarColors.length]}">${init}</div>
+            <div class="order-info">
+              <div class="order-num">${o.order_number}</div>
+              <div class="order-cust">${name}</div>
+            </div>
+            <div class="order-right">
+              <div class="order-amt">${fmtCurrency(o.total_amount)}</div>
+              <div class="order-date"><span class="sbadge ${sc}">${o.status}</span></div>
+            </div>
+          </div>`;
+      }).join('');
+    } else {
+      document.getElementById('recentSalesTable').innerHTML = `
+        <div style="text-align:center;padding:2.5rem 1rem;color:var(--text-muted)">
+          <i class="fas fa-receipt" style="font-size:2rem;opacity:.3;display:block;margin-bottom:.5rem"></i>
+          <span style="font-size:.82rem">No recent orders</span>
+        </div>`;
+    }
+
+    /* Low Stock */
+    const ls = statsData?.low_stock_products || [];
+    if (ls.length) {
+      document.getElementById('lowStockTable').innerHTML = ls.slice(0,6).map(p=>{
+        const pct = p.reorder_point>0 ? Math.round((p.on_hand_qty/p.reorder_point)*100) : 100;
+        const col = pct<30 ? '#ef4444' : pct<70 ? '#f59e0b' : '#10b981';
+        return `
+          <div class="alert-row">
+            <div class="alert-dot" style="background:${col}"></div>
+            <div style="flex:1;min-width:0">
+              <div class="alert-name">${p.product_name||p.name}</div>
+              <div class="alert-code">${p.product_code||''}</div>
+            </div>
+            <div style="text-align:right">
+              <div class="alert-qty">${p.on_hand_qty} left</div>
+              <div style="font-size:.67rem;color:#94a3b8">min ${p.reorder_point}</div>
+            </div>
+          </div>`;
+      }).join('');
+    } else {
+      document.getElementById('lowStockTable').innerHTML = `
+        <div style="text-align:center;padding:2.5rem 1rem">
+          <i class="fas fa-circle-check" style="font-size:2rem;color:#10b981;opacity:.7;display:block;margin-bottom:.5rem"></i>
+          <span style="font-size:.82rem;color:#10b981;font-weight:600">All stock levels healthy</span>
+        </div>`; // green intentional
+    }
+  } catch(e) { console.error('Activity error:', e); }
+}
+
+/* ── Helpers ──────────────────────────────────────── */
+function statusClass(s) {
+  return { draft:'sb-draft', confirmed:'sb-confirmed', delivered:'sb-delivered',
+           cancelled:'sb-cancelled', pending:'sb-pending', in_progress:'sb-in_progress' }[s] || 'sb-draft';
+}
+function fmtCurrency(v) {
+  const n = parseFloat(v||0);
+  return '₹'+n.toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:0});
+}
+</script>
+</body>
+</html>

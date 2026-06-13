@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bill of Materials — MINI ERP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <link href="/static/css/style.css" rel="stylesheet">
+</head>
+<body>
+<div class="page-loader" id="pageLoader">
+  <div style="text-align:center">
+    <div style="width:48px;height:48px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:1.4rem;color:#fff;"><i class="fas fa-sitemap"></i></div>
+    <div class="loader-ring"></div>
+  </div>
+</div>
+<div id="sidebar-container"></div>
+<div class="main-wrapper">
+  <div id="topbar-container"></div>
+  <main class="main-content" id="appContent">
+    <div class="empty-state"><i class="fas fa-spinner fa-spin" style="opacity:1;font-size:2rem;color:var(--primary)"></i></div>
+  </main>
+</div>
+<div id="modal-container"></div>
+<script src="/static/js/app.js"></script>
+<script>
+window.addEventListener('DOMContentLoaded', () => {
+  if (!initPage('boms', 'Bill of Materials')) return;
+  initModule();
+});
+
+let currentPage=1, searchQ='', currentId=null, products=[];
+
+/* ── Build page shell ──────────────────────────────────────── */
+function initModule() {
+  document.getElementById('appContent').innerHTML = `
+    <!-- LIST VIEW -->
+    <div id="listView">
+      <div class="page-header fade-in">
+        <div class="page-header-left">
+          <h1>Bill of Materials</h1>
+          <p>Define product component structures</p>
+        </div>
+        <button class="btn btn-primary" onclick="showForm(null)">
+          <i class="fas fa-plus"></i> New BoM
+        </button>
+      </div>
+      <div class="card fade-in">
+        <div class="card-header">
+          <div class="search-bar">
+            <i class="fas fa-search"></i>
+            <input type="text" id="searchInput" placeholder="Search BoMs..." oninput="onSearch(this.value)">
+          </div>
+        </div>
+        <div id="tableWrap" class="card-body p-0"></div>
+        <div id="pagination"></div>
+      </div>
+    </div>
+
+    <!-- FULL-PAGE FORM VIEW (hidden initially) -->
+    <div id="formView" style="display:none">
+      <!-- Form Header -->
+      <div class="page-header fade-in">
+        <div class="page-header-left">
+          <div style="display:flex;align-items:center;gap:.75rem;">
+            <button onclick="showList()" class="btn btn-outline" style="padding:.45rem .75rem;border-radius:10px;">
+              <i class="fas fa-arrow-left"></i>
+            </button>
+            <div>
+              <h1 id="formTitle">New Bill of Materials</h1>
+              <p id="formSubtitle">Fill in product and component details below</p>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:.6rem;">
+          <button class="btn btn-outline" onclick="showList()">
+            <i class="fas fa-times"></i> Cancel
+          </button>
+          <button class="btn btn-primary" id="saveBtn" onclick="save()">
+            <i class="fas fa-save"></i> Save BoM
+          </button>
+        </div>
+      </div>
+
+      <!-- Form Body — full width, two-column layout -->
+      <div style="display:grid;grid-template-columns:1fr 340px;gap:1.25rem;align-items:start;">
+
+        <!-- Left: Main form card -->
+        <div>
+          <!-- Header fields -->
+          <div class="card fade-in" style="margin-bottom:1.25rem;">
+            <div class="card-header">
+              <h5 style="font-size:.9rem;font-weight:700;"><i class="fas fa-info-circle" style="color:var(--primary)"></i> BoM Details</h5>
+            </div>
+            <div class="card-body">
+              <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:1rem;">
+                <div class="form-group">
+                  <label class="form-label">Finished Product <span style="color:var(--danger)">*</span></label>
+                  <select class="form-control" id="fProd" style="height:44px;">
+                    <option value="">— Select product —</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Version</label>
+                  <input class="form-control" id="fVer" value="1.0" placeholder="e.g. 1.0" style="height:44px;">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Output Qty</label>
+                  <input class="form-control" id="fQty" type="number" value="1" step="0.001" min="0.001" style="height:44px;">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Components table -->
+          <div class="card fade-in">
+            <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+              <h5 style="font-size:.9rem;font-weight:700;"><i class="fas fa-cubes" style="color:var(--success)"></i> Components</h5>
+              <button type="button" class="btn btn-sm btn-primary" onclick="addLine()">
+                <i class="fas fa-plus"></i> Add Component
+              </button>
+            </div>
+            <div class="card-body p-0">
+              <table class="table" style="margin:0;">
+                <thead>
+                  <tr>
+                    <th style="padding:.75rem 1rem;">#</th>
+                    <th style="padding:.75rem 1rem;">Component Product</th>
+                    <th style="padding:.75rem 1rem;width:160px;">Qty Required</th>
+                    <th style="padding:.75rem 1rem;width:120px;">Unit of Measure</th>
+                    <th style="padding:.75rem 1rem;width:60px;text-align:center;"></th>
+                  </tr>
+                </thead>
+                <tbody id="linesBody"></tbody>
+              </table>
+              <div id="emptyLines" style="padding:2rem;text-align:center;color:var(--text-muted);display:none;">
+                <i class="fas fa-cubes" style="font-size:1.5rem;opacity:.3;display:block;margin-bottom:.5rem;"></i>
+                <span style="font-size:.82rem;">No components added. Click "+ Add Component" to begin.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Notes + summary sidebar -->
+        <div>
+          <div class="card fade-in" style="margin-bottom:1.25rem;">
+            <div class="card-header">
+              <h5 style="font-size:.9rem;font-weight:700;"><i class="fas fa-sticky-note" style="color:var(--warning)"></i> Notes</h5>
+            </div>
+            <div class="card-body">
+              <textarea class="form-control" id="fNotes" rows="5" placeholder="Additional notes about this BoM..." style="resize:vertical;"></textarea>
+            </div>
+          </div>
+
+          <div class="card fade-in">
+            <div class="card-header">
+              <h5 style="font-size:.9rem;font-weight:700;"><i class="fas fa-chart-bar" style="color:var(--info)"></i> Summary</h5>
+            </div>
+            <div class="card-body">
+              <div id="summaryBox">
+                <div style="display:flex;justify-content:space-between;padding:.5rem 0;border-bottom:1px solid var(--border);font-size:.82rem;">
+                  <span style="color:var(--text-secondary)">Components</span>
+                  <span id="sumComponents" style="font-weight:700;color:var(--text-primary)">0</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;padding:.5rem 0;font-size:.82rem;">
+                  <span style="color:var(--text-secondary)">Output Qty</span>
+                  <span id="sumQty" style="font-weight:700;color:var(--primary)">1</span>
+                </div>
+              </div>
+              <button class="btn btn-primary w-100" onclick="save()" style="margin-top:1rem;">
+                <i class="fas fa-save"></i> Save BoM
+              </button>
+              <button class="btn btn-outline w-100" onclick="showList()" style="margin-top:.5rem;">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>`;
+
+  loadMasters();
+  loadData(1);
+}
+
+/* ── Masters ─────────────────────────────────────────────── */
+async function loadMasters() {
+  try {
+    products = await API.get('/products/', {page_size:500}).then(d=>d?.items||d?.products||d||[]);
+    populateProductSelect();
+  } catch(e) {}
+}
+
+function populateProductSelect() {
+  const sel = document.getElementById('fProd');
+  if (!sel) return;
+  // clear all but first option
+  while (sel.options.length > 1) sel.remove(1);
+  products.forEach(p => {
+    const o = document.createElement('option');
+    o.value = p.id;
+    o.textContent = p.product_name;
+    sel.appendChild(o);
+  });
+}
+
+/* ── View switchers ──────────────────────────────────────── */
+function showList() {
+  document.getElementById('listView').style.display = '';
+  document.getElementById('formView').style.display = 'none';
+  document.title = 'Bill of Materials — MINI ERP';
+}
+
+function showForm(id) {
+  document.getElementById('listView').style.display = 'none';
+  document.getElementById('formView').style.display = '';
+  currentId = id;
+  lineCount = 0;
+  document.getElementById('linesBody').innerHTML = '';
+  updateSummary();
+
+  if (id) {
+    document.getElementById('formTitle').textContent    = 'Edit Bill of Materials';
+    document.getElementById('formSubtitle').textContent = `Editing BoM #${id}`;
+    document.title = `Edit BoM — MINI ERP`;
+    loadBomForEdit(id);
+  } else {
+    document.getElementById('formTitle').textContent    = 'New Bill of Materials';
+    document.getElementById('formSubtitle').textContent = 'Fill in product and component details below';
+    document.title = 'New BoM — MINI ERP';
+    document.getElementById('fProd').value  = '';
+    document.getElementById('fVer').value   = '1.0';
+    document.getElementById('fQty').value   = '1';
+    document.getElementById('fNotes').value = '';
+    populateProductSelect();
+    addLine();
+  }
+
+  // Qty summary live update
+  document.getElementById('fQty').oninput = updateSummary;
+}
+
+async function loadBomForEdit(id) {
+  try {
+    const b = await API.get(`/manufacturing/boms/${id}`);
+    populateProductSelect();
+    document.getElementById('fProd').value  = b.product_id || '';
+    document.getElementById('fVer').value   = b.version    || '1.0';
+    document.getElementById('fQty').value   = b.quantity   || 1;
+    document.getElementById('fNotes').value = b.notes      || '';
+    (b.components || []).forEach(c => addLine(c));
+    updateSummary();
+  } catch(e) { Toast.error(e.message); showList(); }
+}
+
+/* ── Line management ─────────────────────────────────────── */
+let lineCount = 0;
+
+function addLine(comp={}) {
+  const id   = ++lineCount;
+  const opts = products.map(p =>
+    `<option value="${p.id}" ${comp.component_product_id==p.id?'selected':''}>${p.product_name}</option>`
+  ).join('');
+  const row = document.createElement('tr');
+  row.id = `line_${id}`;
+  row.innerHTML = `
+    <td style="padding:.6rem 1rem;color:var(--text-muted);font-size:.8rem;font-weight:600">${lineCount}</td>
+    <td style="padding:.5rem .75rem;">
+      <select class="form-control" id="lcomp_${id}" style="height:40px;">
+        <option value="">— Select component —</option>${opts}
+      </select>
+    </td>
+    <td style="padding:.5rem .75rem;">
+      <input class="form-control" id="lqty_${id}" type="number"
+             value="${comp.quantity||1}" min="0.001" step="0.001" style="height:40px;" oninput="updateSummary()">
+    </td>
+    <td style="padding:.5rem .75rem;">
+      <input class="form-control" id="luom_${id}" value="${comp.unit_of_measure||'PCS'}"
+             placeholder="PCS" style="height:40px;width:90px;">
+    </td>
+    <td style="padding:.5rem .75rem;text-align:center;">
+      <button type="button" class="btn btn-sm btn-danger"
+              onclick="removeLine(${id})" title="Remove">
+        <i class="fas fa-times"></i>
+      </button>
+    </td>`;
+  document.getElementById('linesBody').appendChild(row);
+  updateSummary();
+  toggleEmptyLines();
+}
+
+function removeLine(id) {
+  const row = document.getElementById(`line_${id}`);
+  if (row) row.remove();
+  updateSummary();
+  toggleEmptyLines();
+}
+
+function toggleEmptyLines() {
+  const empty = document.getElementById('emptyLines');
+  const tbody = document.getElementById('linesBody');
+  if (empty && tbody) empty.style.display = tbody.children.length ? 'none' : 'block';
+}
+
+function updateSummary() {
+  const lines = document.querySelectorAll('[id^="lcomp_"]');
+  document.getElementById('sumComponents').textContent = lines.length;
+  const qty = parseFloat(document.getElementById('fQty')?.value) || 1;
+  document.getElementById('sumQty').textContent = qty;
+}
+
+/* ── Search / Load list ──────────────────────────────────── */
+let searchTimer;
+function onSearch(v) {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { searchQ = v; loadData(1); }, 400);
+}
+
+async function loadData(page=1) {
+  currentPage = page;
+  document.getElementById('tableWrap').innerHTML =
+    `<div class="empty-state"><i class="fas fa-spinner fa-spin" style="opacity:1;color:var(--primary)"></i></div>`;
+  try {
+    const data  = await API.get('/manufacturing/boms', { page, page_size:15, search:searchQ });
+    const items = data?.items || data?.boms || [];
+    const meta  = data?.meta  || data?.pagination || {};
+
+    if (!items.length) {
+      document.getElementById('tableWrap').innerHTML = `
+        <div class="empty-state">
+          <i class="fas fa-sitemap"></i>
+          <h5>No Bills of Materials found</h5>
+          <button class="btn btn-primary" onclick="showForm(null)">
+            <i class="fas fa-plus"></i> Create First BoM
+          </button>
+        </div>`;
+      return;
+    }
+
+    document.getElementById('tableWrap').innerHTML = `
+      <div class="table-responsive">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>BoM Code</th>
+              <th>Finished Product</th>
+              <th>Version</th>
+              <th>Output Qty</th>
+              <th>Components</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map(b => `
+              <tr>
+                <td><span style="color:var(--primary);font-weight:700">${b.bom_code}</span></td>
+                <td style="font-weight:600">${products.find(p=>p.id===b.product_id)?.product_name || `Product #${b.product_id}`}</td>
+                <td><span class="badge badge-secondary">v${b.version}</span></td>
+                <td>${UI.number(b.quantity||1)}</td>
+                <td><span class="badge badge-info">${b.components?.length||0} items</span></td>
+                <td>${UI.badge(b.is_active?'active':'inactive')}</td>
+                <td>
+                  <div class="table-actions">
+                    <button class="btn btn-sm btn-outline" onclick="showForm(${b.id})" title="Edit">
+                      <i class="fas fa-pencil"></i> Edit
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="del(${b.id})" title="Delete">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+
+    UI.renderPagination('pagination', {
+      page: meta.page||page, pages: meta.pages||1, total: meta.total||items.length
+    }, 'loadData');
+
+  } catch(e) {
+    document.getElementById('tableWrap').innerHTML =
+      `<div class="empty-state"><i class="fas fa-exclamation-circle"></i><h5>${e.message}</h5></div>`;
+  }
+}
+
+/* ── Save ────────────────────────────────────────────────── */
+async function save() {
+  const btn = document.getElementById('saveBtn');
+  const components = [];
+  document.querySelectorAll('[id^="lcomp_"]').forEach(sel => {
+    if (!sel.value) return;
+    const id = sel.id.replace('lcomp_','');
+    components.push({
+      component_product_id: parseInt(sel.value),
+      quantity:             parseFloat(document.getElementById(`lqty_${id}`)?.value) || 1,
+      unit_of_measure:      document.getElementById(`luom_${id}`)?.value || 'PCS'
+    });
+  });
+
+  if (!document.getElementById('fProd').value) { Toast.error('Please select a finished product'); return; }
+  if (!components.length) { Toast.error('Add at least one component'); return; }
+
+  const body = {
+    product_id: parseInt(document.getElementById('fProd').value),
+    version:    document.getElementById('fVer').value.trim() || '1.0',
+    quantity:   parseFloat(document.getElementById('fQty').value) || 1,
+    notes:      document.getElementById('fNotes').value.trim(),
+    components,
+    operations: []
+  };
+
+  Loader.btn(btn, true);
+  try {
+    if (currentId) await API.put(`/manufacturing/boms/${currentId}`, body);
+    else           await API.post('/manufacturing/boms', body);
+    Toast.success(currentId ? 'BoM updated successfully!' : 'BoM created successfully!');
+    showList();
+    loadData(currentPage);
+  } catch(e) { Toast.error(e.message); }
+  finally    { Loader.btn(btn, false); }
+}
+
+/* ── Delete ──────────────────────────────────────────────── */
+async function del(id) {
+  if (!confirm('Delete this Bill of Materials? This cannot be undone.')) return;
+  try {
+    await API.delete(`/manufacturing/boms/${id}`);
+    Toast.success('BoM deleted');
+    loadData(currentPage);
+  } catch(e) { Toast.error(e.message); }
+}
+</script>
+</body>
+</html>

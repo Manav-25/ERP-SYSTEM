@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inventory — MINI ERP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <link href="/static/css/style.css" rel="stylesheet">
+  
+</head>
+<body>
+<div class="page-loader" id="pageLoader">
+  <div style="text-align:center">
+    <div style="width:48px;height:48px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:1.4rem;color:#fff;"><i class="fas fa-industry"></i></div>
+    <div class="loader-ring"></div>
+  </div>
+</div>
+<div id="sidebar-container"></div>
+<div class="main-wrapper">
+  <div id="topbar-container"></div>
+  <main class="main-content" id="appContent">
+    <div class="empty-state"><i class="fas fa-spinner fa-spin" style="opacity:1;font-size:2rem;color:var(--primary)"></i><h5 style="margin-top:1rem">Loading...</h5></div>
+  </main>
+</div>
+<div id="modal-container"></div>
+<script src="/static/js/app.js"></script>
+<script>
+window.addEventListener('DOMContentLoaded', () => {
+  if (!initPage('inventory', 'Inventory')) return;
+  initModule();
+});
+
+let allItems = [], currentPage = 1, searchQ = '', stockFilter = '';
+
+function initModule() {
+  document.getElementById('appContent').innerHTML = `
+    <div class="page-header fade-in">
+      <div class="page-header-left"><h1>Inventory</h1><p>Real-time stock levels</p></div>
+      <div style="display:flex;gap:.75rem;">
+        <a href="/static/pages/stock-ledger.html" class="btn btn-outline"><i class="fas fa-clipboard-list"></i> Stock Ledger</a>
+        <button class="btn btn-primary" onclick="openAdjust()"><i class="fas fa-edit"></i> Adjust Stock</button>
+      </div>
+    </div>
+    <div class="grid grid-4" style="margin-bottom:1.25rem;">
+      <div class="stat-card primary fade-in"><div class="stat-icon"><i class="fas fa-boxes"></i></div><div class="stat-body"><div class="stat-value" id="kTotal">—</div><div class="stat-label">Total Products</div></div></div>
+      <div class="stat-card danger fade-in"><div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div><div class="stat-body"><div class="stat-value" id="kLow">—</div><div class="stat-label">Low Stock</div></div></div>
+      <div class="stat-card warning fade-in"><div class="stat-icon"><i class="fas fa-ban"></i></div><div class="stat-body"><div class="stat-value" id="kOut">—</div><div class="stat-label">Out of Stock</div></div></div>
+      <div class="stat-card success fade-in"><div class="stat-icon"><i class="fas fa-rupee-sign"></i></div><div class="stat-body"><div class="stat-value" id="kVal">—</div><div class="stat-label">Stock Value</div></div></div>
+    </div>
+    <div class="card fade-in">
+      <div class="card-header" style="flex-wrap:wrap;gap:.75rem;">
+        <div class="search-bar"><i class="fas fa-search"></i><input type="text" id="searchInput" placeholder="Search products..." oninput="filterItems(this.value)"></div>
+        <select class="form-control" id="stockFilter" onchange="filterItems(document.getElementById('searchInput').value)" style="width:160px">
+          <option value="">All Stock</option><option value="low">Low Stock</option><option value="out">Out of Stock</option><option value="ok">Normal</option>
+        </select>
+      </div>
+      <div id="tableWrap" class="card-body p-0"></div>
+    </div>
+    <div class="modal" id="adjModal">
+      <div class="modal-backdrop" onclick="closeAdjust()"></div>
+      <div class="modal-dialog">
+        <div class="modal-header"><div class="modal-title"><i class="fas fa-edit" style="color:var(--primary);margin-right:.5rem"></i>Stock Adjustment</div><button class="modal-close" onclick="closeAdjust()">x</button></div>
+        <div class="modal-body">
+          <div class="form-group"><label class="form-label">Product *</label><select class="form-control" id="adjProd" onchange="onAdjProdChange()"><option value="">Select product...</option></select></div>
+          <div class="form-group"><label class="form-label">Current Stock</label><input class="form-control" id="adjCurrent" readonly style="background:var(--bg-card2)"></div>
+          <div class="form-group"><label class="form-label">Adjustment *</label>
+            <div style="display:flex;gap:.5rem">
+              <select class="form-control" id="adjDir" style="width:120px"><option value="add">Add (+)</option><option value="subtract">Remove (−)</option></select>
+              <input class="form-control" id="adjQty" type="number" min="0.001" step="0.001" placeholder="Quantity" style="flex:1">
+            </div></div>
+          <div class="form-group"><label class="form-label">Notes / Reason</label><textarea class="form-control" id="adjNotes" rows="2"></textarea></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" onclick="closeAdjust()">Cancel</button>
+          <button class="btn btn-primary" id="adjBtn" onclick="doAdjust()"><i class="fas fa-save"></i> Apply</button>
+        </div>
+      </div>
+    </div>`;
+  loadData();
+}
+
+async function loadData() {
+  document.getElementById('tableWrap').innerHTML = `<div class="empty-state"><i class="fas fa-spinner fa-spin" style="opacity:1;color:var(--primary)"></i></div>`;
+  try {
+    allItems = await API.get('/inventory/stock-summary');
+    if (!Array.isArray(allItems)) allItems = allItems?.items || [];
+
+    const totalVal = allItems.reduce((s,i)=>s+parseFloat(i.inventory_value||0),0);
+    const lowCount = allItems.filter(i=>i.is_low_stock && parseFloat(i.on_hand_qty||0)>0).length;
+    const outCount = allItems.filter(i=>parseFloat(i.on_hand_qty||0)<=0).length;
+
+    document.getElementById('kTotal').textContent = allItems.length;
+    document.getElementById('kLow').textContent   = lowCount;
+    document.getElementById('kOut').textContent   = outCount;
+    document.getElementById('kVal').textContent   = 'Rs.' + UI.number(Math.round(totalVal));
+
+    // Populate adjust dropdown
+    const sel = document.getElementById('adjProd');
+    if (sel && sel.options.length <= 1) {
+      allItems.forEach(p=>{ const o=document.createElement('option'); o.value=p.id; o.dataset.qty=p.on_hand_qty||0; o.textContent=`${p.product_name} (${p.product_code||''}) - Qty: ${p.on_hand_qty||0}`; sel.appendChild(o); });
+    }
+
+    filterItems('');
+  } catch(e) { document.getElementById('tableWrap').innerHTML=`<div class="empty-state"><i class="fas fa-exclamation-circle"></i><h5>${e.message}</h5></div>`; }
+}
+
+function filterItems(q='') {
+  const sf = document.getElementById('stockFilter')?.value||'';
+  let items = allItems.filter(i => {
+    const matchQ = !q || i.product_name.toLowerCase().includes(q.toLowerCase()) || (i.product_code||'').toLowerCase().includes(q.toLowerCase());
+    const onHand = parseFloat(i.on_hand_qty||0);
+    const matchSF = !sf || (sf==='out' && onHand<=0) || (sf==='low' && i.is_low_stock && onHand>0) || (sf==='ok' && !i.is_low_stock && onHand>0);
+    return matchQ && matchSF;
+  });
+  if (!items.length) { document.getElementById('tableWrap').innerHTML=`<div class="empty-state"><i class="fas fa-warehouse"></i><h5>No matching items</h5></div>`; return; }
+  document.getElementById('tableWrap').innerHTML = `
+    <div class="table-responsive"><table class="table">
+      <thead><tr><th>Product</th><th>Code</th><th>On Hand</th><th>Reserved</th><th>Available</th><th>Reorder Pt</th><th>Stock Value</th><th>Status</th></tr></thead>
+      <tbody>${items.map(i=>{
+        const avail=parseFloat(i.free_qty||0), isOut=parseFloat(i.on_hand_qty||0)<=0, isLow=i.is_low_stock&&!isOut;
+        const badge=isOut?`<span class="badge badge-danger">Out of Stock</span>`:isLow?`<span class="badge badge-warning">Low Stock</span>`:`<span class="badge badge-success">In Stock</span>`;
+        return `<tr>
+          <td style="font-weight:600">${i.product_name}</td>
+          <td><span style="font-family:monospace;font-size:.8rem;color:var(--text-muted)">${i.product_code||'—'}</span></td>
+          <td><strong style="color:${isOut?'var(--danger)':isLow?'var(--warning)':'var(--text-primary)'}">${UI.number(i.on_hand_qty||0)}</strong></td>
+          <td style="color:var(--text-muted)">${UI.number(i.reserved_qty||0)}</td>
+          <td><strong>${UI.number(avail)}</strong></td>
+          <td style="color:var(--text-muted)">${UI.number(i.reorder_point||0)}</td>
+          <td style="color:var(--text-muted)">${UI.currency(i.inventory_value||0)}</td>
+          <td>${badge}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>`;
+}
+
+function onAdjProdChange() {
+  const sel = document.getElementById('adjProd');
+  const qty = sel.selectedOptions[0]?.dataset.qty||'';
+  document.getElementById('adjCurrent').value = qty ? `${qty} units` : '';
+}
+function openAdjust() { document.getElementById('adjModal').classList.add('show'); }
+function closeAdjust() { document.getElementById('adjModal').classList.remove('show'); }
+
+async function doAdjust() {
+  const btn = document.getElementById('adjBtn');
+  const prodId = document.getElementById('adjProd').value;
+  const dir    = document.getElementById('adjDir').value;
+  const qty    = parseFloat(document.getElementById('adjQty').value)||0;
+  const notes  = document.getElementById('adjNotes').value;
+  if (!prodId || qty <= 0) { Toast.error('Select a product and enter valid quantity'); return; }
+  // API: POST /products/{id}/adjust-stock { quantity (positive=add, negative=remove), notes }
+  const adjustQty = dir === 'subtract' ? -qty : qty;
+  Loader.btn(btn, true);
+  try {
+    await API.post(`/products/${prodId}/adjust-stock`, { quantity: adjustQty, notes });
+    Toast.success('Stock adjusted!');
+    closeAdjust(); await loadData();
+  } catch(e) { Toast.error(e.message); } finally { Loader.btn(btn, false); }
+}
+
+</script>
+</body>
+</html>

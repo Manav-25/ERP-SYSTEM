@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MFG Orders — MINI ERP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <link href="/static/css/style.css" rel="stylesheet">
+  
+</head>
+<body>
+<div class="page-loader" id="pageLoader">
+  <div style="text-align:center">
+    <div style="width:48px;height:48px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:1.4rem;color:#fff;"><i class="fas fa-industry"></i></div>
+    <div class="loader-ring"></div>
+  </div>
+</div>
+<div id="sidebar-container"></div>
+<div class="main-wrapper">
+  <div id="topbar-container"></div>
+  <main class="main-content" id="appContent">
+    <div class="empty-state"><i class="fas fa-spinner fa-spin" style="opacity:1;font-size:2rem;color:var(--primary)"></i><h5 style="margin-top:1rem">Loading...</h5></div>
+  </main>
+</div>
+<div id="modal-container"></div>
+<script src="/static/js/app.js"></script>
+<script>
+window.addEventListener('DOMContentLoaded', () => {
+  if (!initPage('mfg-orders', 'MFG Orders')) return;
+  initModule();
+});
+
+let currentPage = 1, searchQ = '', products = [], boms = [];
+
+function initModule() {
+  document.getElementById('appContent').innerHTML = `
+    <div class="page-header fade-in">
+      <div class="page-header-left"><h1>Manufacturing Orders</h1><p>Track production orders</p></div>
+      <div style="display:flex;gap:.75rem;">
+        <a href="/static/pages/boms.html" class="btn btn-outline"><i class="fas fa-sitemap"></i> Bill of Materials</a>
+        <button class="btn btn-primary" onclick="openModal()"><i class="fas fa-plus"></i> New MFG Order</button>
+      </div>
+    </div>
+    <div class="card fade-in">
+      <div class="card-header" style="flex-wrap:wrap;gap:.75rem;">
+        <div class="search-bar"><i class="fas fa-search"></i><input type="text" id="searchInput" placeholder="Search orders..." oninput="onSearch(this.value)"></div>
+        <select class="form-control" id="statusFilter" onchange="loadData(1)" style="width:160px">
+          <option value="">All Status</option><option value="draft">Draft</option><option value="confirmed">Confirmed</option>
+          <option value="in_progress">In Progress</option><option value="done">Done</option><option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+      <div id="tableWrap" class="card-body p-0"></div>
+      <div id="pagination"></div>
+    </div>
+    <div class="modal" id="moModal">
+      <div class="modal-backdrop" onclick="closeModal()"></div>
+      <div class="modal-dialog modal-lg">
+        <div class="modal-header"><div class="modal-title">New Manufacturing Order</div><button class="modal-close" onclick="closeModal()">x</button></div>
+        <div class="modal-body">
+          <div class="grid grid-2">
+            <div class="form-group"><label class="form-label">Product *</label><select class="form-control" id="fProd" onchange="onProdChange()"><option value="">Select product...</option></select></div>
+            <div class="form-group"><label class="form-label">Bill of Materials</label><select class="form-control" id="fBom"><option value="">Auto (latest active BOM)</option></select></div>
+            <div class="form-group"><label class="form-label">Planned Quantity *</label><input class="form-control" id="fQty" type="number" value="1" min="0.001" step="0.001"></div>
+            <div class="form-group"><label class="form-label">Scheduled Start</label><input class="form-control" id="fStart" type="date"></div>
+            <div class="form-group"><label class="form-label">Scheduled End</label><input class="form-control" id="fEnd" type="date"></div>
+          </div>
+          <div class="form-group"><label class="form-label">Notes</label><textarea class="form-control" id="fNotes" rows="2"></textarea></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary" id="saveBtn" onclick="save()"><i class="fas fa-save"></i> Create</button>
+        </div>
+      </div>
+    </div>`;
+  loadMasters(); loadData(1);
+  if (new URLSearchParams(location.search).get('action') === 'create') setTimeout(openModal, 700);
+}
+
+async function loadMasters() {
+  try {
+    [products, boms] = await Promise.all([
+      API.get('/products/', {page_size:500, procurement_type:'manufacturing'}).then(d=>d?.items||d?.products||d||[]),
+      API.get('/manufacturing/boms', {page_size:500}).then(d=>d?.items||d?.boms||d||[])
+    ]);
+    const sel = document.getElementById('fProd');
+    if (sel) products.forEach(p=>{ const o=document.createElement('option'); o.value=p.id; o.textContent=p.product_name; sel.appendChild(o); });
+  } catch(e) {}
+}
+
+function onProdChange() {
+  const pid = document.getElementById('fProd').value;
+  const bomSel = document.getElementById('fBom');
+  bomSel.innerHTML = '<option value="">Auto (latest active BOM)</option>';
+  boms.filter(b=>String(b.product_id)===String(pid)).forEach(b=>{ const o=document.createElement('option'); o.value=b.id; o.textContent=`${b.bom_code} v${b.version}`; bomSel.appendChild(o); });
+}
+
+let searchTimer;
+function onSearch(v) { clearTimeout(searchTimer); searchTimer = setTimeout(()=>{ searchQ=v; loadData(1); },400); }
+
+async function loadData(page=1) {
+  currentPage = page;
+  document.getElementById('tableWrap').innerHTML = `<div class="empty-state"><i class="fas fa-spinner fa-spin" style="opacity:1;color:var(--primary)"></i></div>`;
+  try {
+    const sf = document.getElementById('statusFilter')?.value||'';
+    const data = await API.get('/manufacturing/orders', { page, page_size:15, status:sf });
+    const items = data?.items || [];
+    const meta  = data?.meta || data?.pagination || {};
+    if (!items.length) { document.getElementById('tableWrap').innerHTML=`<div class="empty-state"><i class="fas fa-industry"></i><h5>No manufacturing orders</h5><button class="btn btn-primary" onclick="openModal()"><i class="fas fa-plus"></i> New Order</button></div>`; return; }
+    document.getElementById('tableWrap').innerHTML = `
+      <div class="table-responsive"><table class="table">
+        <thead><tr><th>MO #</th><th>Product</th><th>Planned Qty</th><th>Produced</th><th>Start Date</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>${items.map(o=>`<tr>
+          <td><span style="color:var(--primary);font-weight:700">${o.mo_number}</span>${o.auto_generated?'<span class="badge badge-info" style="margin-left:.4rem;font-size:.65rem">Auto</span>':''}</td>
+          <td style="font-weight:600">${products.find(p=>p.id===o.product_id)?.product_name||`Product #${o.product_id}`}</td>
+          <td><strong>${UI.number(o.planned_qty)}</strong></td>
+          <td style="color:var(--text-muted)">${UI.number(o.produced_qty||0)}</td>
+          <td style="color:var(--text-muted)">${UI.date(o.scheduled_start)}</td>
+          <td>${UI.badge(o.status)}</td>
+          <td><div class="table-actions">
+            ${o.status==='draft'?`<button class="btn btn-sm btn-primary" onclick="confirmMO(${o.id})" title="Confirm"><i class="fas fa-check"></i></button>`:''}
+            ${o.status==='confirmed'?`<button class="btn btn-sm btn-info" onclick="startMO(${o.id})" title="Start Production"><i class="fas fa-play"></i></button>`:''}
+            ${o.status==='in_progress'?`<button class="btn btn-sm btn-success" onclick="doneMO(${o.id})" title="Mark Done"><i class="fas fa-flag-checkered"></i></button>`:''}
+          </div></td>
+        </tr>`).join('')}</tbody>
+      </table></div>`;
+    UI.renderPagination('pagination', { page:meta.page||page, pages:meta.pages||1, total:meta.total||items.length }, 'loadData');
+  } catch(e) { document.getElementById('tableWrap').innerHTML=`<div class="empty-state"><i class="fas fa-exclamation-circle"></i><h5>${e.message}</h5></div>`; }
+}
+
+function openModal() {
+  document.getElementById('fProd').value=''; document.getElementById('fBom').innerHTML='<option value="">Auto (latest active BOM)</option>';
+  document.getElementById('fQty').value='1'; document.getElementById('fStart').value=new Date().toISOString().split('T')[0]; document.getElementById('fEnd').value=''; document.getElementById('fNotes').value='';
+  document.getElementById('moModal').classList.add('show');
+}
+function closeModal() { document.getElementById('moModal').classList.remove('show'); }
+
+async function save() {
+  const btn = document.getElementById('saveBtn');
+  const body = {
+    product_id: parseInt(document.getElementById('fProd').value)||0,
+    bom_id: document.getElementById('fBom').value ? parseInt(document.getElementById('fBom').value) : null,
+    planned_qty: parseFloat(document.getElementById('fQty').value)||1,
+    scheduled_start: document.getElementById('fStart').value||null,
+    scheduled_end: document.getElementById('fEnd').value||null,
+    notes: document.getElementById('fNotes').value
+  };
+  if (!body.product_id) { Toast.error('Select a product'); return; }
+  Loader.btn(btn, true);
+  try {
+    await API.post('/manufacturing/orders', body);
+    Toast.success('Manufacturing order created!');
+    closeModal(); loadData(currentPage);
+  } catch(e) { Toast.error(e.message); } finally { Loader.btn(btn, false); }
+}
+
+async function confirmMO(id) {
+  if (!confirm('Confirm this manufacturing order?')) return;
+  try { await API.post(`/manufacturing/orders/${id}/confirm`, {}); Toast.success('MO Confirmed'); loadData(currentPage); } catch(e) { Toast.error(e.message); }
+}
+async function startMO(id) {
+  if (!confirm('Start production? This will consume raw materials from stock.')) return;
+  try { await API.post(`/manufacturing/orders/${id}/start`, {}); Toast.success('Production started'); loadData(currentPage); } catch(e) { Toast.error(e.message); }
+}
+async function doneMO(id) {
+  if (!confirm('Mark as done? This will add finished products to stock.')) return;
+  try { await API.post(`/manufacturing/orders/${id}/done`, {}); Toast.success('Production completed! Stock updated.'); loadData(currentPage); } catch(e) { Toast.error(e.message); }
+}
+
+</script>
+</body>
+</html>

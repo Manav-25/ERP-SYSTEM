@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Users — MINI ERP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <link href="/static/css/style.css" rel="stylesheet">
+  
+</head>
+<body>
+<div class="page-loader" id="pageLoader">
+  <div style="text-align:center">
+    <div style="width:48px;height:48px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:1.4rem;color:#fff;"><i class="fas fa-industry"></i></div>
+    <div class="loader-ring"></div>
+  </div>
+</div>
+<div id="sidebar-container"></div>
+<div class="main-wrapper">
+  <div id="topbar-container"></div>
+  <main class="main-content" id="appContent">
+    <div class="empty-state"><i class="fas fa-spinner fa-spin" style="opacity:1;font-size:2rem;color:var(--primary)"></i><h5 style="margin-top:1rem">Loading...</h5></div>
+  </main>
+</div>
+<div id="modal-container"></div>
+<script src="/static/js/app.js"></script>
+<script>
+window.addEventListener('DOMContentLoaded', () => {
+  if (!initPage('users', 'Users')) return;
+  initModule();
+});
+
+let currentPage = 1, searchQ = '', currentId = null;
+
+function initModule() {
+  if (!Auth.hasRole('admin')) {
+    document.getElementById('appContent').innerHTML = `<div class="empty-state"><i class="fas fa-lock"></i><h5>Access Denied</h5><p>Admin role required</p></div>`;
+    return;
+  }
+  document.getElementById('appContent').innerHTML = `
+    <div class="page-header fade-in">
+      <div class="page-header-left"><h1>User Management</h1><p>Manage system users and roles</p></div>
+      <button class="btn btn-primary" onclick="openModal()"><i class="fas fa-plus"></i> New User</button>
+    </div>
+    <div class="card fade-in">
+      <div class="card-header">
+        <div class="search-bar"><i class="fas fa-search"></i><input type="text" id="searchInput" placeholder="Search users..." oninput="onSearch(this.value)"></div>
+      </div>
+      <div id="tableWrap" class="card-body p-0"></div>
+      <div id="pagination"></div>
+    </div>
+    <div class="modal" id="userModal">
+      <div class="modal-backdrop" onclick="closeModal()"></div>
+      <div class="modal-dialog modal-lg">
+        <div class="modal-header"><div class="modal-title" id="modalTitle">New User</div><button class="modal-close" onclick="closeModal()">x</button></div>
+        <div class="modal-body">
+          <div class="grid grid-2">
+            <div class="form-group"><label class="form-label">Username *</label><input class="form-control" id="fUser"></div>
+            <div class="form-group"><label class="form-label">Full Name</label><input class="form-control" id="fFull"></div>
+            <div class="form-group"><label class="form-label">Email *</label><input class="form-control" id="fEmail" type="email"></div>
+            <div class="form-group"><label class="form-label">Phone</label><input class="form-control" id="fPhone"></div>
+            <div class="form-group"><label class="form-label">Password <span id="pwdHint" style="font-weight:400;color:var(--text-muted)">(required for new user)</span></label>
+              <input class="form-control" id="fPass" type="password" placeholder="Min. 8 characters"></div>
+            <div class="form-group"><label class="form-label">Role</label>
+              <select class="form-control" id="fRole">
+                <option value="viewer">Viewer</option><option value="sales">Sales</option><option value="purchase">Purchase</option><option value="warehouse">Warehouse</option><option value="production">Production</option><option value="admin">Admin</option>
+              </select></div>
+            <div class="form-group"><label class="form-label">Status</label>
+              <select class="form-control" id="fStatus"><option value="true">Active</option><option value="false">Inactive</option></select></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary" id="saveBtn" onclick="save()"><i class="fas fa-save"></i> Save</button>
+        </div>
+      </div>
+    </div>`;
+  loadData(1);
+}
+
+let searchTimer;
+function onSearch(v) { clearTimeout(searchTimer); searchTimer = setTimeout(()=>{ searchQ=v; loadData(1); },400); }
+
+async function loadData(page=1) {
+  currentPage = page;
+  document.getElementById('tableWrap').innerHTML = `<div class="empty-state"><i class="fas fa-spinner fa-spin" style="opacity:1;color:var(--primary)"></i></div>`;
+  try {
+    const data = await API.get('/users/', { page, page_size:15, search:searchQ });
+    const items = data?.items || data?.users || [];
+    const meta  = data?.meta || data?.pagination || {};
+    if (!items.length) { document.getElementById('tableWrap').innerHTML=`<div class="empty-state"><i class="fas fa-users-cog"></i><h5>No users found</h5></div>`; return; }
+    document.getElementById('tableWrap').innerHTML = `
+      <div class="table-responsive"><table class="table">
+        <thead><tr><th>User</th><th>Email</th><th>Roles</th><th>Last Login</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>${items.map(u=>`<tr>
+          <td><div style="display:flex;align-items:center;gap:.6rem;">
+            <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--secondary));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.8rem;flex-shrink:0">${(u.full_name||u.username||'?').charAt(0).toUpperCase()}</div>
+            <div><div style="font-weight:700">${u.full_name||u.username}</div><div style="font-size:.72rem;color:var(--text-muted)">@${u.username}</div></div>
+          </div></td>
+          <td style="color:var(--text-secondary)">${u.email||'—'}</td>
+          <td>${(u.roles||[]).map(r=>`<span class="badge badge-primary" style="margin-right:.25rem">${r.name||r}</span>`).join('')||'—'}</td>
+          <td style="color:var(--text-muted);font-size:.8rem">${UI.date(u.last_login)||'Never'}</td>
+          <td>${UI.badge(u.is_active?'active':'inactive')}</td>
+          <td><div class="table-actions">
+            <button class="btn btn-sm btn-outline" onclick="openModal(${u.id})" title="Edit"><i class="fas fa-pencil"></i></button>
+            ${u.is_active?`<button class="btn btn-sm btn-warning" onclick="toggle(${u.id},false)" title="Deactivate"><i class="fas fa-ban"></i></button>`:`<button class="btn btn-sm btn-success" onclick="toggle(${u.id},true)" title="Activate"><i class="fas fa-check"></i></button>`}
+          </div></td>
+        </tr>`).join('')}</tbody>
+      </table></div>`;
+    UI.renderPagination('pagination', { page:meta.page||page, pages:meta.pages||1, total:meta.total||items.length }, 'loadData');
+  } catch(e) { document.getElementById('tableWrap').innerHTML=`<div class="empty-state"><i class="fas fa-exclamation-circle"></i><h5>${e.message}</h5></div>`; }
+}
+
+async function openModal(id=null) {
+  currentId = id;
+  document.getElementById('modalTitle').textContent = id ? 'Edit User' : 'New User';
+  document.getElementById('pwdHint').textContent = id ? '(leave blank to keep current)' : '(required)';
+  if (id) {
+    try {
+      const u = await API.get(`/users/${id}`);
+      document.getElementById('fUser').value  = u.username||'';
+      document.getElementById('fFull').value  = u.full_name||'';
+      document.getElementById('fEmail').value = u.email||'';
+      document.getElementById('fPhone').value = u.phone||'';
+      document.getElementById('fPass').value  = '';
+      document.getElementById('fRole').value  = (u.roles||[])[0]?.name||'viewer';
+      document.getElementById('fStatus').value= String(u.is_active!==false);
+    } catch(e) { Toast.error(e.message); return; }
+  } else { ['fUser','fFull','fEmail','fPhone','fPass'].forEach(i=>document.getElementById(i).value=''); document.getElementById('fRole').value='viewer'; document.getElementById('fStatus').value='true'; }
+  document.getElementById('userModal').classList.add('show');
+}
+function closeModal() { document.getElementById('userModal').classList.remove('show'); }
+
+async function save() {
+  const btn = document.getElementById('saveBtn');
+  const pwd = document.getElementById('fPass').value;
+  const body = { username:document.getElementById('fUser').value.trim(), full_name:document.getElementById('fFull').value.trim(), email:document.getElementById('fEmail').value.trim(), phone:document.getElementById('fPhone').value.trim(), is_active:document.getElementById('fStatus').value==='true', roles:[document.getElementById('fRole').value] };
+  if (pwd) body.password = pwd;
+  if (!body.username||!body.email) { Toast.error('Username and email required'); return; }
+  if (!currentId && !pwd) { Toast.error('Password required for new users'); return; }
+  Loader.btn(btn, true);
+  try {
+    if (currentId) await API.put(`/users/${currentId}`, body);
+    else await API.post('/users/', body);
+    Toast.success(currentId ? 'User updated!' : 'User created!');
+    closeModal(); loadData(currentPage);
+  } catch(e) { Toast.error(e.message); } finally { Loader.btn(btn, false); }
+}
+
+async function toggle(id, active) {
+  try { await API.patch(`/users/${id}`, { is_active:active }); Toast.success(`User ${active?'activated':'deactivated'}`); loadData(currentPage); } catch(e) { Toast.error(e.message); }
+}
+
+</script>
+</body>
+</html>

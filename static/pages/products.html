@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Products — MINI ERP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <link href="/static/css/style.css" rel="stylesheet">
+  
+</head>
+<body>
+<div class="page-loader" id="pageLoader">
+  <div style="text-align:center">
+    <div style="width:48px;height:48px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:1.4rem;color:#fff;"><i class="fas fa-industry"></i></div>
+    <div class="loader-ring"></div>
+  </div>
+</div>
+<div id="sidebar-container"></div>
+<div class="main-wrapper">
+  <div id="topbar-container"></div>
+  <main class="main-content" id="appContent">
+    <div class="empty-state"><i class="fas fa-spinner fa-spin" style="opacity:1;font-size:2rem;color:var(--primary)"></i><h5 style="margin-top:1rem">Loading...</h5></div>
+  </main>
+</div>
+<div id="modal-container"></div>
+<script src="/static/js/app.js"></script>
+<script>
+window.addEventListener('DOMContentLoaded', () => {
+  if (!initPage('products', 'Products')) return;
+  initModule();
+});
+
+let currentPage = 1, searchQ = '', currentId = null;
+
+function initModule() {
+  document.getElementById('appContent').innerHTML = `
+    <div class="page-header fade-in">
+      <div class="page-header-left"><h1>Products</h1><p>Manage your product catalog</p></div>
+      <button class="btn btn-primary" onclick="openModal()"><i class="fas fa-plus"></i> New Product</button>
+    </div>
+    <div class="card fade-in">
+      <div class="card-header">
+        <div class="search-bar"><i class="fas fa-search"></i><input type="text" id="searchInput" placeholder="Search products..." oninput="onSearch(this.value)"></div>
+        <button class="btn btn-sm btn-outline" onclick="loadData(1)"><i class="fas fa-sync-alt"></i></button>
+      </div>
+      <div id="tableWrap" class="card-body p-0"></div>
+      <div id="pagination"></div>
+    </div>
+    <div class="modal" id="prodModal">
+      <div class="modal-backdrop" onclick="closeModal()"></div>
+      <div class="modal-dialog modal-lg">
+        <div class="modal-header"><div class="modal-title" id="modalTitle">New Product</div><button class="modal-close" onclick="closeModal()">x</button></div>
+        <div class="modal-body">
+          <div class="grid grid-2">
+            <div class="form-group"><label class="form-label">Product Code *</label><input class="form-control" id="fCode" placeholder="e.g. CHAIR-001"></div>
+            <div class="form-group"><label class="form-label">Product Name *</label><input class="form-control" id="fName"></div>
+            <div class="form-group"><label class="form-label">Category</label><input class="form-control" id="fCategory" placeholder="e.g. Furniture"></div>
+            <div class="form-group"><label class="form-label">Unit of Measure</label>
+              <select class="form-control" id="fUom"><option>PCS</option><option>KG</option><option>MTR</option><option>SET</option><option>PAIR</option></select></div>
+            <div class="form-group"><label class="form-label">Sale Price (Rs.)</label><input class="form-control" id="fSalePrice" type="number" step="0.01" min="0"></div>
+            <div class="form-group"><label class="form-label">Cost Price (Rs.)</label><input class="form-control" id="fCostPrice" type="number" step="0.01" min="0"></div>
+            <div class="form-group"><label class="form-label">Reorder Point</label><input class="form-control" id="fReorder" type="number" value="0" min="0"></div>
+            <div class="form-group"><label class="form-label">Procurement Type</label>
+              <select class="form-control" id="fProcType"><option value="buy">Buy</option><option value="manufacturing">Manufacture</option></select></div>
+          </div>
+          <div class="form-group"><label class="form-label">Description</label><textarea class="form-control" id="fDesc" rows="2"></textarea></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary" id="saveBtn" onclick="save()"><i class="fas fa-save"></i> Save</button>
+        </div>
+      </div>
+    </div>`;
+  loadData(1);
+}
+
+let searchTimer;
+function onSearch(v) { clearTimeout(searchTimer); searchTimer = setTimeout(()=>{ searchQ=v; loadData(1); },400); }
+
+async function loadData(page=1) {
+  currentPage = page;
+  document.getElementById('tableWrap').innerHTML = `<div class="empty-state"><i class="fas fa-spinner fa-spin" style="opacity:1;color:var(--primary)"></i></div>`;
+  try {
+    const data = await API.get('/products/', { page, page_size: 15, search: searchQ });
+    const items = data?.items || [];
+    const meta  = data?.meta || data?.pagination || {};
+    if (!items.length) { document.getElementById('tableWrap').innerHTML=`<div class="empty-state"><i class="fas fa-box"></i><h5>No products found</h5><button class="btn btn-primary" onclick="openModal()"><i class="fas fa-plus"></i> New Product</button></div>`; return; }
+    document.getElementById('tableWrap').innerHTML = `
+      <div class="table-responsive"><table class="table">
+        <thead><tr><th>Code</th><th>Name</th><th>Category</th><th>UoM</th><th>Sale Price</th><th>Stock</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>${items.map(p=>`<tr>
+          <td><span style="font-family:monospace;color:var(--primary);font-weight:700">${p.product_code||''}</span></td>
+          <td><div style="font-weight:600">${p.product_name}</div><div style="font-size:.75rem;color:var(--text-muted)">${p.description||''}</div></td>
+          <td style="color:var(--text-secondary)">${p.category||'—'}</td>
+          <td><span class="badge badge-secondary">${p.unit_of_measure||'PCS'}</span></td>
+          <td><strong>${UI.currency(p.sale_price)}</strong></td>
+          <td><strong>${UI.number(p.on_hand_qty||0)}</strong></td>
+          <td>${UI.badge(p.is_active?'active':'inactive')}</td>
+          <td><div class="table-actions">
+            <button class="btn btn-sm btn-outline" onclick="openModal(${p.id})" title="Edit"><i class="fas fa-pencil"></i></button>
+            <button class="btn btn-sm btn-danger" onclick="del(${p.id},'${p.product_name.replace(/'/g,"")}')" title="Delete"><i class="fas fa-trash"></i></button>
+          </div></td>
+        </tr>`).join('')}</tbody>
+      </table></div>`;
+    UI.renderPagination('pagination', { page:meta.page||page, pages:meta.pages||1, total:meta.total||items.length }, 'loadData');
+  } catch(e) { document.getElementById('tableWrap').innerHTML=`<div class="empty-state"><i class="fas fa-exclamation-circle"></i><h5>${e.message}</h5></div>`; }
+}
+
+async function openModal(id=null) {
+  currentId = id;
+  document.getElementById('modalTitle').textContent = id ? 'Edit Product' : 'New Product';
+  if (id) {
+    try {
+      const p = await API.get(`/products/${id}`);
+      document.getElementById('fCode').value      = p.product_code||'';
+      document.getElementById('fName').value      = p.product_name||'';
+      document.getElementById('fCategory').value  = p.category||'';
+      document.getElementById('fUom').value        = p.unit_of_measure||'PCS';
+      document.getElementById('fSalePrice').value  = p.sale_price||'';
+      document.getElementById('fCostPrice').value  = p.cost_price||'';
+      document.getElementById('fReorder').value    = p.reorder_point||0;
+      document.getElementById('fDesc').value       = p.description||'';
+      document.getElementById('fProcType').value   = p.procurement_type||'buy';
+    } catch(e) { Toast.error(e.message); return; }
+  } else {
+    ['fCode','fName','fCategory','fSalePrice','fCostPrice','fDesc'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('fUom').value='PCS'; document.getElementById('fReorder').value='0'; document.getElementById('fProcType').value='buy';
+  }
+  document.getElementById('prodModal').classList.add('show');
+}
+function closeModal() { document.getElementById('prodModal').classList.remove('show'); }
+
+async function save() {
+  const btn = document.getElementById('saveBtn');
+  const body = {
+    product_code: document.getElementById('fCode').value.trim(),
+    product_name: document.getElementById('fName').value.trim(),
+    category: document.getElementById('fCategory').value.trim(),
+    unit_of_measure: document.getElementById('fUom').value,
+    sale_price: parseFloat(document.getElementById('fSalePrice').value)||0,
+    cost_price: parseFloat(document.getElementById('fCostPrice').value)||0,
+    reorder_point: parseInt(document.getElementById('fReorder').value)||0,
+    description: document.getElementById('fDesc').value.trim(),
+    procurement_type: document.getElementById('fProcType').value,
+  };
+  if (!body.product_name) { Toast.error('Product name is required'); return; }
+  Loader.btn(btn, true);
+  try {
+    if (currentId) await API.put(`/products/${currentId}`, body);
+    else await API.post('/products/', body);
+    Toast.success(currentId ? 'Product updated!' : 'Product created!');
+    closeModal(); loadData(currentPage);
+  } catch(e) { Toast.error(e.message); } finally { Loader.btn(btn, false); }
+}
+
+async function del(id, name) {
+  if (!confirm(`Delete "${name}"?`)) return;
+  try { await API.delete(`/products/${id}`); Toast.success('Product deleted'); loadData(currentPage); } catch(e) { Toast.error(e.message); }
+}
+
+</script>
+</body>
+</html>

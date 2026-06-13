@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign In — MINI ERP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --primary:#6366f1; --secondary:#8b5cf6; --success:#10b981; --danger:#ef4444; --radius:.75rem; --transition:.2s cubic-bezier(.4,0,.2,1); }
+    body { font-family:'Inter',system-ui,sans-serif; background:#f1f5f9; min-height:100vh; display:flex; align-items:stretch; overflow:hidden; }
+
+    .login-visual { flex:1; background:linear-gradient(135deg,#0f172a 0%,#1e1b4b 50%,#312e81 100%); display:flex; flex-direction:column; align-items:center; justify-content:center; padding:3rem; position:relative; overflow:hidden; }
+    .login-visual::before { content:''; position:absolute; width:500px; height:500px; background:radial-gradient(circle,rgba(99,102,241,.3) 0%,transparent 70%); top:-100px; left:-100px; animation:pulse 4s ease-in-out infinite; }
+    .login-visual::after  { content:''; position:absolute; width:400px; height:400px; background:radial-gradient(circle,rgba(139,92,246,.2) 0%,transparent 70%); bottom:-100px; right:-100px; animation:pulse 4s ease-in-out infinite reverse; }
+    @keyframes pulse { 0%,100%{transform:scale(1);opacity:.6} 50%{transform:scale(1.1);opacity:1} }
+
+    .shape { position:absolute; border-radius:16px; opacity:.08; animation:float 6s ease-in-out infinite; }
+    .s1{width:100px;height:100px;background:var(--primary);top:15%;left:10%;animation-delay:0s}
+    .s2{width:60px;height:60px;background:var(--secondary);top:60%;left:15%;animation-delay:1s;border-radius:50%}
+    .s3{width:80px;height:80px;background:#06b6d4;top:25%;right:15%;animation-delay:2s;transform:rotate(45deg)}
+    .s4{width:50px;height:50px;background:#f59e0b;bottom:20%;right:20%;animation-delay:1.5s;border-radius:50%}
+    @keyframes float { 0%,100%{transform:translateY(0) rotate(0deg)} 50%{transform:translateY(-20px) rotate(5deg)} }
+
+    .visual-content { position:relative; z-index:1; text-align:center; max-width:380px; }
+    .visual-logo { width:72px; height:72px; background:linear-gradient(135deg,var(--primary),var(--secondary)); border-radius:20px; display:flex; align-items:center; justify-content:center; font-size:1.8rem; color:#fff; margin:0 auto 1.5rem; box-shadow:0 20px 40px rgba(99,102,241,.4); animation:logoFloat 3s ease-in-out infinite; }
+    @keyframes logoFloat { 0%,100%{transform:translateY(0);box-shadow:0 20px 40px rgba(99,102,241,.4)} 50%{transform:translateY(-8px);box-shadow:0 28px 50px rgba(99,102,241,.5)} }
+    .visual-title { font-size:2rem; font-weight:800; color:#fff; margin-bottom:.5rem; }
+    .visual-subtitle { font-size:.95rem; color:rgba(255,255,255,.5); line-height:1.6; margin-bottom:2rem; }
+    .visual-stats { display:flex; gap:1.5rem; justify-content:center; margin-top:1.5rem; }
+    .vis-stat-num { font-size:1.5rem; font-weight:800; color:#fff; }
+    .vis-stat-lbl { font-size:.72rem; color:rgba(255,255,255,.4); text-transform:uppercase; letter-spacing:.08em; }
+    .vis-div { width:1px; background:rgba(255,255,255,.1); align-self:stretch; margin:.25rem 0; }
+    .feature-pills { display:flex; flex-wrap:wrap; gap:.5rem; justify-content:center; margin-top:1.5rem; }
+    .pill { background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12); color:rgba(255,255,255,.7); padding:.3rem .75rem; border-radius:9999px; font-size:.75rem; font-weight:500; }
+
+    .login-panel { width:460px; background:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:3rem 2.5rem; }
+    .form-wrap { width:100%; max-width:360px; }
+    .form-header { margin-bottom:2rem; }
+    .form-header h1 { font-size:1.6rem; font-weight:800; color:#0f172a; }
+    .form-header p { font-size:.875rem; color:#64748b; margin-top:.3rem; }
+
+    .flash { display:flex; align-items:center; gap:.6rem; padding:.75rem 1rem; border-radius:var(--radius); font-size:.85rem; font-weight:500; margin-bottom:1.25rem; animation:slideDown .3s ease; }
+    @keyframes slideDown { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+    .flash-error   { background:#fef2f2; color:#991b1b; border:1px solid #fecaca; }
+    .flash-success { background:#f0fdf4; color:#065f46; border:1px solid #bbf7d0; }
+
+    .form-group { margin-bottom:1.25rem; }
+    .form-label { display:block; font-size:.825rem; font-weight:600; color:#475569; margin-bottom:.4rem; }
+    .input-wrap { position:relative; }
+    .input-icon { position:absolute; left:.9rem; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:.9rem; pointer-events:none; }
+    .form-input { width:100%; padding:.7rem .9rem .7rem 2.5rem; border:1.5px solid #e2e8f0; border-radius:var(--radius); font-size:.9rem; color:#0f172a; background:#f8fafc; outline:none; transition:all var(--transition); font-family:inherit; }
+    .form-input:focus { border-color:var(--primary); box-shadow:0 0 0 3px rgba(99,102,241,.15); background:#fff; }
+    .form-input::placeholder { color:#cbd5e1; }
+    .toggle-pwd { position:absolute; right:.9rem; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; color:#94a3b8; font-size:.9rem; }
+    .toggle-pwd:hover { color:var(--primary); }
+
+    .form-footer { display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; }
+    .remember { display:flex; align-items:center; gap:.4rem; font-size:.825rem; color:#475569; cursor:pointer; }
+    .remember input { accent-color:var(--primary); }
+    .forgot { font-size:.825rem; color:var(--primary); text-decoration:none; font-weight:600; }
+
+    .btn-login { width:100%; padding:.8rem; background:linear-gradient(135deg,var(--primary),var(--secondary)); color:#fff; border:none; border-radius:var(--radius); font-size:.95rem; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:.5rem; box-shadow:0 4px 14px rgba(99,102,241,.35); font-family:inherit; transition:all var(--transition); }
+    .btn-login:hover { transform:translateY(-2px); box-shadow:0 8px 22px rgba(99,102,241,.45); }
+    .btn-login:disabled { opacity:.7; transform:none; }
+
+    .demo-creds { margin-top:1.75rem; }
+    .demo-label { font-size:.72rem; font-weight:600; color:#94a3b8; text-align:center; text-transform:uppercase; letter-spacing:.08em; margin-bottom:.75rem; }
+    .cred-chips { display:flex; gap:.5rem; justify-content:center; flex-wrap:wrap; }
+    .chip { padding:.3rem .75rem; border-radius:9999px; font-size:.75rem; font-weight:600; cursor:pointer; border:none; transition:all var(--transition); font-family:inherit; }
+    .chip-admin { background:#ede9fe; color:#5b21b6; } .chip-admin:hover { background:#6366f1; color:#fff; }
+    .chip-sales { background:#d1fae5; color:#065f46; } .chip-sales:hover { background:#10b981; color:#fff; }
+
+    @media(max-width:768px) { .login-visual{display:none} .login-panel{width:100%} }
+  </style>
+</head>
+<body>
+  <div class="login-visual">
+    <div class="shape s1"></div><div class="shape s2"></div><div class="shape s3"></div><div class="shape s4"></div>
+    <div class="visual-content">
+      <div class="visual-logo"><i class="fas fa-industry"></i></div>
+      <h1 class="visual-title">MINI ERP</h1>
+      <p class="visual-subtitle">Shiv Furniture Management System<br>Complete demand-to-delivery operations</p>
+      <div class="visual-stats">
+        <div class="vis-stat"><div class="vis-stat-num">10+</div><div class="vis-stat-lbl">Modules</div></div>
+        <div class="vis-div"></div>
+        <div class="vis-stat"><div class="vis-stat-num">6</div><div class="vis-stat-lbl">Roles</div></div>
+        <div class="vis-div"></div>
+        <div class="vis-stat"><div class="vis-stat-num">100%</div><div class="vis-stat-lbl">Secure</div></div>
+      </div>
+      <div class="feature-pills">
+        <span class="pill"><i class="fas fa-shopping-cart" style="margin-right:.3rem"></i>Sales</span>
+        <span class="pill"><i class="fas fa-truck" style="margin-right:.3rem"></i>Purchase</span>
+        <span class="pill"><i class="fas fa-cogs" style="margin-right:.3rem"></i>Manufacturing</span>
+        <span class="pill"><i class="fas fa-warehouse" style="margin-right:.3rem"></i>Inventory</span>
+        <span class="pill"><i class="fas fa-chart-bar" style="margin-right:.3rem"></i>Reports</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="login-panel">
+    <div class="form-wrap">
+      <div class="form-header"><h1>Welcome back</h1><p>Sign in to your ERP account</p></div>
+      <div id="flashMsg"></div>
+      <div class="form-group">
+        <label class="form-label">Username or Email</label>
+        <div class="input-wrap">
+          <input type="text" id="username" class="form-input" placeholder="Enter username" autocomplete="username">
+          <i class="fas fa-user input-icon"></i>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <div class="input-wrap">
+          <input type="password" id="password" class="form-input" placeholder="Enter password" autocomplete="current-password">
+          <i class="fas fa-lock input-icon"></i>
+          <button type="button" class="toggle-pwd" onclick="togglePwd()"><i class="fas fa-eye" id="eyeIcon"></i></button>
+        </div>
+      </div>
+      <div class="form-footer">
+        <label class="remember"><input type="checkbox" id="remember"> Remember me</label>
+      </div>
+      <button class="btn-login" id="loginBtn" onclick="doLogin()">
+        <i class="fas fa-sign-in-alt" id="loginIcon"></i>
+        <span id="loginText">Sign In</span>
+      </button>
+      <div class="demo-creds">
+        <div class="demo-label">Quick Demo Access</div>
+        <div class="cred-chips">
+          <button class="chip chip-admin" onclick="fill('admin','Admin@123')"><i class="fas fa-shield-alt" style="margin-right:.3rem"></i>admin / Admin@123</button>
+          <button class="chip chip-sales" onclick="fill('sales1','Admin@123')"><i class="fas fa-user-tie" style="margin-right:.3rem"></i>sales1 / Admin@123</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+      ? `${location.protocol}//${location.hostname}:8000/api/v1`
+      : '/api/v1';
+
+    // Redirect if already logged in
+    if (localStorage.getItem('erp_token')) window.location.href = '/static/dashboard.html';
+
+    function fill(u,p) { document.getElementById('username').value=u; document.getElementById('password').value=p; }
+    function togglePwd() {
+      const i=document.getElementById('password'), ico=document.getElementById('eyeIcon');
+      i.type = i.type==='password'?'text':'password';
+      ico.className = i.type==='password'?'fas fa-eye':'fas fa-eye-slash';
+    }
+    function showFlash(msg, type='error') {
+      document.getElementById('flashMsg').innerHTML = `<div class="flash flash-${type}"><i class="fas fa-${type==='error'?'exclamation-circle':'check-circle'}"></i>${msg}</div>`;
+    }
+
+    document.addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+
+    async function doLogin() {
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      if (!username || !password) { showFlash('Enter username and password'); return; }
+
+      const btn = document.getElementById('loginBtn');
+      btn.disabled = true;
+      document.getElementById('loginIcon').className = 'fas fa-spinner fa-spin';
+      document.getElementById('loginText').textContent = 'Signing in...';
+
+      try {
+        const res = await fetch(API_BASE + '/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Login failed');
+
+        localStorage.setItem('erp_token', data.access_token);
+        localStorage.setItem('erp_refresh', data.refresh_token || '');
+        localStorage.setItem('erp_user', JSON.stringify(data.user));
+        localStorage.setItem('erp_roles', JSON.stringify((data.user?.roles||[]).map(r=>r.name)));
+
+        showFlash('Login successful! Redirecting...', 'success');
+        setTimeout(()=>{ window.location.href='/static/dashboard.html'; }, 500);
+      } catch(e) {
+        showFlash(e.message || 'Login failed');
+        btn.disabled = false;
+        document.getElementById('loginIcon').className = 'fas fa-sign-in-alt';
+        document.getElementById('loginText').textContent = 'Sign In';
+      }
+    }
+  </script>
+</body>
+</html>

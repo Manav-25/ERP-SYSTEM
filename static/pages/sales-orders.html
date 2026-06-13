@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sales Orders — MINI ERP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <link href="/static/css/style.css" rel="stylesheet">
+  
+</head>
+<body>
+<div class="page-loader" id="pageLoader">
+  <div style="text-align:center">
+    <div style="width:48px;height:48px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:1.4rem;color:#fff;"><i class="fas fa-industry"></i></div>
+    <div class="loader-ring"></div>
+  </div>
+</div>
+<div id="sidebar-container"></div>
+<div class="main-wrapper">
+  <div id="topbar-container"></div>
+  <main class="main-content" id="appContent">
+    <div class="empty-state"><i class="fas fa-spinner fa-spin" style="opacity:1;font-size:2rem;color:var(--primary)"></i><h5 style="margin-top:1rem">Loading...</h5></div>
+  </main>
+</div>
+<div id="modal-container"></div>
+<script src="/static/js/app.js"></script>
+<script>
+window.addEventListener('DOMContentLoaded', () => {
+  if (!initPage('sales-orders', 'Sales Orders')) return;
+  initModule();
+});
+
+let currentPage = 1, searchQ = '', customers = [], products = [];
+
+function initModule() {
+  document.getElementById('appContent').innerHTML = `
+    <div class="page-header fade-in">
+      <div class="page-header-left"><h1>Sales Orders</h1><p>Manage customer sales orders</p></div>
+      <button class="btn btn-primary" onclick="openCreateModal()"><i class="fas fa-plus"></i> New Sales Order</button>
+    </div>
+    <div class="card fade-in">
+      <div class="card-header" style="flex-wrap:wrap;gap:.75rem;">
+        <div class="search-bar"><i class="fas fa-search"></i><input type="text" id="searchInput" placeholder="Search orders..." oninput="onSearch(this.value)"></div>
+        <select class="form-control" id="statusFilter" onchange="loadData(1)" style="width:160px">
+          <option value="">All Status</option><option value="draft">Draft</option><option value="confirmed">Confirmed</option>
+          <option value="in_progress">In Progress</option><option value="delivered">Delivered</option><option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+      <div id="tableWrap" class="card-body p-0"></div>
+      <div id="pagination"></div>
+    </div>
+    <div class="modal" id="soModal">
+      <div class="modal-backdrop" onclick="closeModal()"></div>
+      <div class="modal-dialog modal-xl">
+        <div class="modal-header"><div class="modal-title">New Sales Order</div><button class="modal-close" onclick="closeModal()">x</button></div>
+        <div class="modal-body">
+          <div class="grid grid-3">
+            <div class="form-group"><label class="form-label">Customer *</label><select class="form-control" id="fCust"><option value="">Select...</option></select></div>
+            <div class="form-group"><label class="form-label">Order Date *</label><input class="form-control" id="fDate" type="date"></div>
+            <div class="form-group"><label class="form-label">Expected Delivery</label><input class="form-control" id="fDelDate" type="date"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin:.75rem 0 .5rem">
+            <label class="form-label" style="margin:0;font-weight:600">Order Items</label>
+            <button type="button" class="btn btn-sm btn-outline" onclick="addLine()"><i class="fas fa-plus"></i> Add Item</button>
+          </div>
+          <div class="table-responsive">
+            <table class="table" style="font-size:.825rem"><thead><tr><th>Product</th><th style="width:90px">Qty</th><th style="width:130px">Unit Price</th><th style="width:80px">Tax%</th><th style="width:120px">Total</th><th style="width:40px"></th></tr></thead>
+            <tbody id="linesBody"></tbody></table>
+          </div>
+          <div style="text-align:right;font-weight:700;color:var(--text-primary);margin-top:.5rem">Grand Total: <span id="orderTotal">Rs.0.00</span></div>
+          <div class="form-group" style="margin-top:.75rem"><label class="form-label">Notes</label><textarea class="form-control" id="fNotes" rows="2"></textarea></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary" id="saveBtn" onclick="save()"><i class="fas fa-save"></i> Save Order</button>
+        </div>
+      </div>
+    </div>`;
+  loadMasters(); loadData(1);
+  if (new URLSearchParams(location.search).get('action') === 'create') setTimeout(openCreateModal, 700);
+}
+
+async function loadMasters() {
+  try {
+    [customers, products] = await Promise.all([
+      API.get('/sales/customers', {page_size:500}).then(d=>d?.items||d?.customers||d||[]),
+      API.get('/products/', {page_size:500}).then(d=>d?.items||d?.products||d||[])
+    ]);
+    const sel = document.getElementById('fCust');
+    if (sel) customers.forEach(c=>{ const o=document.createElement('option'); o.value=c.id; o.textContent=c.company_name; sel.appendChild(o); });
+  } catch(e) {}
+}
+
+let searchTimer;
+function onSearch(v) { clearTimeout(searchTimer); searchTimer = setTimeout(()=>{ searchQ=v; loadData(1); },400); }
+
+async function loadData(page=1) {
+  currentPage = page;
+  document.getElementById('tableWrap').innerHTML = `<div class="empty-state"><i class="fas fa-spinner fa-spin" style="opacity:1;color:var(--primary)"></i></div>`;
+  try {
+    const sf = document.getElementById('statusFilter')?.value||'';
+    const data = await API.get('/sales/orders', { page, page_size:15, search:searchQ, status:sf });
+    const items = data?.items || data?.sales_orders || [];
+    const meta  = data?.meta || data?.pagination || {};
+    if (!items.length) { document.getElementById('tableWrap').innerHTML=`<div class="empty-state"><i class="fas fa-file-invoice-dollar"></i><h5>No sales orders</h5><button class="btn btn-primary" onclick="openCreateModal()"><i class="fas fa-plus"></i> New Order</button></div>`; return; }
+    document.getElementById('tableWrap').innerHTML = `
+      <div class="table-responsive"><table class="table">
+        <thead><tr><th>Order #</th><th>Customer</th><th>Date</th><th>Expected Delivery</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>${items.map(o=>`<tr>
+          <td><span style="color:var(--primary);font-weight:700">${o.order_number}</span></td>
+          <td style="font-weight:600">${o.customer?.company_name||'—'}</td>
+          <td style="color:var(--text-muted)">${UI.date(o.order_date)}</td>
+          <td style="color:var(--text-muted)">${UI.date(o.expected_delivery_date)}</td>
+          <td><strong>${UI.currency(o.total_amount)}</strong></td>
+          <td>${UI.badge(o.status)}</td>
+          <td><div class="table-actions">
+            ${o.status==='draft'?`<button class="btn btn-sm btn-primary" onclick="confirmOrder(${o.id})" title="Confirm"><i class="fas fa-check"></i></button>`:''}
+            ${['draft','confirmed'].includes(o.status)?`<button class="btn btn-sm btn-danger" onclick="cancelOrder(${o.id})" title="Cancel"><i class="fas fa-times"></i></button>`:''}
+          </div></td>
+        </tr>`).join('')}</tbody>
+      </table></div>`;
+    UI.renderPagination('pagination', { page:meta.page||page, pages:meta.pages||1, total:meta.total||items.length }, 'loadData');
+  } catch(e) { document.getElementById('tableWrap').innerHTML=`<div class="empty-state"><i class="fas fa-exclamation-circle"></i><h5>${e.message}</h5></div>`; }
+}
+
+let lineCount = 0;
+function openCreateModal() {
+  lineCount = 0;
+  document.getElementById('fDate').value = new Date().toISOString().split('T')[0];
+  document.getElementById('fDelDate').value = '';
+  document.getElementById('fNotes').value = '';
+  document.getElementById('linesBody').innerHTML = '';
+  document.getElementById('orderTotal').textContent = 'Rs.0.00';
+  if (customers.length === 0) loadMasters().then(()=>addLine()); else addLine();
+  document.getElementById('soModal').classList.add('show');
+}
+function closeModal() { document.getElementById('soModal').classList.remove('show'); }
+
+function addLine() {
+  const id = ++lineCount;
+  const opts = products.map(p=>`<option value="${p.id}" data-price="${p.sale_price||0}">${p.product_name}</option>`).join('');
+  const row = document.createElement('tr');
+  row.id = `line_${id}`;
+  row.innerHTML = `<td><select class="form-control" id="lprod_${id}" onchange="lineChange(${id})" style="min-width:160px"><option value="">Select...</option>${opts}</select></td>
+    <td><input class="form-control" id="lqty_${id}" type="number" value="1" min="0.001" step="0.001" oninput="calcTotal()"></td>
+    <td><input class="form-control" id="lprice_${id}" type="number" step="0.01" value="0" oninput="calcTotal()"></td>
+    <td><input class="form-control" id="ltax_${id}" type="number" step="0.01" value="0" oninput="calcTotal()" style="width:70px"></td>
+    <td id="ltotal_${id}" style="font-weight:700;vertical-align:middle;white-space:nowrap">Rs.0.00</td>
+    <td><button type="button" class="btn btn-sm btn-danger" onclick="document.getElementById('line_${id}').remove();calcTotal()"><i class="fas fa-times"></i></button></td>`;
+  document.getElementById('linesBody').appendChild(row);
+}
+
+function lineChange(id) {
+  const sel = document.getElementById(`lprod_${id}`);
+  const price = parseFloat(sel.selectedOptions[0]?.dataset.price||0);
+  document.getElementById(`lprice_${id}`).value = price.toFixed(2);
+  calcTotal();
+}
+
+function calcTotal() {
+  let total = 0;
+  document.querySelectorAll('[id^="lqty_"]').forEach(el => {
+    const id = el.id.replace('lqty_','');
+    const qty   = parseFloat(el.value)||0;
+    const price = parseFloat(document.getElementById(`lprice_${id}`)?.value)||0;
+    const tax   = parseFloat(document.getElementById(`ltax_${id}`)?.value)||0;
+    const base  = qty*price;
+    const t     = base + base*tax/100;
+    total += t;
+    const tel = document.getElementById(`ltotal_${id}`);
+    if (tel) tel.textContent = UI.currency(t);
+  });
+  document.getElementById('orderTotal').textContent = UI.currency(total);
+}
+
+async function save() {
+  const btn = document.getElementById('saveBtn');
+  const items = [];
+  document.querySelectorAll('[id^="lprod_"]').forEach(sel => {
+    if (!sel.value) return;
+    const id = sel.id.replace('lprod_','');
+    items.push({
+      product_id: parseInt(sel.value),
+      ordered_qty: parseFloat(document.getElementById(`lqty_${id}`)?.value)||1,
+      unit_price: parseFloat(document.getElementById(`lprice_${id}`)?.value)||0,
+      tax_pct: parseFloat(document.getElementById(`ltax_${id}`)?.value)||0,
+      discount_pct: 0
+    });
+  });
+  if (!document.getElementById('fCust').value) { Toast.error('Select a customer'); return; }
+  if (!items.length) { Toast.error('Add at least one item'); return; }
+  const body = {
+    customer_id: parseInt(document.getElementById('fCust').value),
+    order_date: document.getElementById('fDate').value,
+    expected_delivery_date: document.getElementById('fDelDate').value || null,
+    notes: document.getElementById('fNotes').value,
+    items
+  };
+  Loader.btn(btn, true);
+  try {
+    await API.post('/sales/orders', body);
+    Toast.success('Sales order created!');
+    closeModal(); loadData(currentPage);
+  } catch(e) { Toast.error(e.message); } finally { Loader.btn(btn, false); }
+}
+
+async function confirmOrder(id) {
+  if (!confirm('Confirm this sales order?')) return;
+  try { await API.post(`/sales/orders/${id}/confirm`, {}); Toast.success('Order confirmed'); loadData(currentPage); } catch(e) { Toast.error(e.message); }
+}
+async function cancelOrder(id) {
+  if (!confirm('Cancel this sales order?')) return;
+  try { await API.post(`/sales/orders/${id}/cancel`, {}); Toast.success('Order cancelled'); loadData(currentPage); } catch(e) { Toast.error(e.message); }
+}
+
+</script>
+</body>
+</html>

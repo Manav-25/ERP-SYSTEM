@@ -477,6 +477,11 @@ function initPage(activePage, title) {
   UI.renderChangePwdModal();
   loadNotifications();
 
+  // Business owner = view-only: apply read-only mode globally
+  if (Auth.hasRole('business_owner') && !Auth.isAdmin()) {
+    document.body.classList.add('read-only-mode');
+  }
+
   // Hide loader
   setTimeout(() => {
     const l = document.getElementById('pageLoader');
@@ -485,6 +490,7 @@ function initPage(activePage, title) {
 
   return true;
 }
+
 
 /* ── RBAC UI Helpers (call after initPage) ────────────────────────── */
 /** Hide/disable write-action buttons if user cannot write to this module */

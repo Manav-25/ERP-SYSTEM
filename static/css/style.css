@@ -611,6 +611,44 @@ body {
 
 .table tbody td:first-child { font-weight: 600; }
 
+/* ── Read-Only Mode (Business Owner) ───────────────────────────────── */
+/*
+  When body.read-only-mode is set:
+  - Hide all "New X" / create buttons in page headers
+  - Hide all action buttons in table rows (edit / delete / confirm / cancel)
+  - Hide modal save/submit buttons
+  Keeps view-only elements (search, filters, pagination) fully visible.
+*/
+
+/* 1. Hide "New X" primary action button in every page header */
+body.read-only-mode .page-header .btn,
+body.read-only-mode .page-header button {
+  display: none !important;
+}
+
+/* 2. Hide all action buttons inside table rows */
+body.read-only-mode .table-actions {
+  display: none !important;
+}
+
+/* 3. Hide modal footer save/submit buttons */
+body.read-only-mode .modal-footer .btn-primary,
+body.read-only-mode .modal-footer .btn-success,
+body.read-only-mode .modal-footer .btn-danger {
+  display: none !important;
+}
+
+/* 4. Hide any inline "Add Item / Add Line" buttons inside modals */
+body.read-only-mode .modal-body .btn-outline,
+body.read-only-mode .modal-body .btn-sm {
+  display: none !important;
+}
+
+/* 5. Generic helper class for any extra write-only elements */
+body.read-only-mode .write-only {
+  display: none !important;
+}
+
 /* ── Table Actions (edit/delete buttons row) ────────────────────────── */
 .table-actions {
   display: flex;

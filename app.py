@@ -720,7 +720,7 @@ def receive_po(oid):
                               VALUES(%s,NOW(),'purchase_receipt',%s,%s,%s,'purchase_order',%s,%s,'Goods receipt',%s)""",
                            (pid,qty,new_qty,item.get('unit_price',0),oid,po['order_number'],request.current_user['id']))
                 cur.execute("UPDATE purchase_order_items SET received_qty=%s WHERE id=%s",(qty,item['id']))
-            cur.execute("UPDATE purchase_orders SET status='fully_received', received_at=NOW() WHERE id=%s",(oid,))
+            cur.execute("UPDATE purchase_orders SET status='fully_received' WHERE id=%s",(oid,))
             conn.commit()
         return ok({'message':'Goods received, stock updated'})
     except Exception as e:

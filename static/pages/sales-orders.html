@@ -57,8 +57,10 @@ function initModule() {
         <div class="modal-body">
           <div class="grid grid-3">
             <div class="form-group"><label class="form-label">Customer *</label><select class="form-control" id="fCust"><option value="">Select...</option></select></div>
-            <div class="form-group"><label class="form-label">Order Date *</label><input class="form-control" id="fDate" type="date"></div>
-            <div class="form-group"><label class="form-label">Expected Delivery</label><input class="form-control" id="fDelDate" type="date"></div>
+            <div class="form-group"><label class="form-label">Order Date *</label><input class="form-control" id="fDate" type="date" onchange="syncDeliveryMin()"></div>
+            <div class="form-group"><label class="form-label">Expected Delivery</label><input class="form-control" id="fDelDate" type="date" oninput="validateDeliveryDate()">
+              <div id="fDelDateErr" style="display:none;font-size:.75rem;color:#ef4444;margin-top:.3rem"><i class="fas fa-exclamation-circle"></i> Must be on or after the Order Date</div>
+            </div>
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin:.75rem 0 .5rem">
             <label class="form-label" style="margin:0;font-weight:600">Order Items</label>
@@ -127,13 +129,42 @@ async function loadData(page=1) {
 let lineCount = 0;
 function openCreateModal() {
   lineCount = 0;
-  document.getElementById('fDate').value = new Date().toISOString().split('T')[0];
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('fDate').value    = today;
   document.getElementById('fDelDate').value = '';
-  document.getElementById('fNotes').value = '';
+  document.getElementById('fDelDate').min   = today;   // can't pick past dates
+  document.getElementById('fDelDateErr').style.display = 'none';
+  document.getElementById('fNotes').value   = '';
   document.getElementById('linesBody').innerHTML = '';
   document.getElementById('orderTotal').textContent = 'Rs.0.00';
   if (customers.length === 0) loadMasters().then(()=>addLine()); else addLine();
   document.getElementById('soModal').classList.add('show');
+}
+
+/* Keep delivery date min in sync when order date changes */
+function syncDeliveryMin() {
+  const orderDate = document.getElementById('fDate').value;
+  const delInput  = document.getElementById('fDelDate');
+  delInput.min = orderDate;
+  // If already-chosen delivery date is now before order date, clear it
+  if (delInput.value && delInput.value < orderDate) {
+    delInput.value = '';
+    document.getElementById('fDelDateErr').style.display = 'none';
+  }
+}
+
+/* Show inline error if delivery date is before order date */
+function validateDeliveryDate() {
+  const orderDate = document.getElementById('fDate').value;
+  const delDate   = document.getElementById('fDelDate').value;
+  const errEl     = document.getElementById('fDelDateErr');
+  if (delDate && orderDate && delDate < orderDate) {
+    document.getElementById('fDelDate').style.borderColor = '#ef4444';
+    errEl.style.display = 'block';
+  } else {
+    document.getElementById('fDelDate').style.borderColor = '';
+    errEl.style.display = 'none';
+  }
 }
 function closeModal() { document.getElementById('soModal').classList.remove('show'); }
 
@@ -190,6 +221,14 @@ async function save() {
   });
   if (!document.getElementById('fCust').value) { Toast.error('Select a customer'); return; }
   if (!items.length) { Toast.error('Add at least one item'); return; }
+  const orderDate = document.getElementById('fDate').value;
+  const delDate   = document.getElementById('fDelDate').value;
+  if (delDate && delDate < orderDate) {
+    Toast.error('Expected Delivery Date cannot be before the Order Date');
+    document.getElementById('fDelDate').style.borderColor = '#ef4444';
+    document.getElementById('fDelDateErr').style.display = 'block';
+    return;
+  }
   const body = {
     customer_id: parseInt(document.getElementById('fCust').value),
     order_date: document.getElementById('fDate').value,

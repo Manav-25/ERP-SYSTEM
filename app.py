@@ -99,7 +99,7 @@ def next_seq(prefix):
 ROLE_WRITE = {
     'admin':              ['all'],
     'business_owner':     [],           # read-only
-    'sales_user':         ['sales','customers','deliveries'],
+    'sales_user':         ['sales','customers','deliveries','delivery'],
     'purchase_user':      ['purchase','vendors'],
     'manufacturing_user': ['manufacturing','boms'],
     'inventory_manager':  ['inventory','products'],
@@ -525,6 +525,10 @@ def create_sales_order():
     d = request.get_json() or {}
     if not d.get('customer_id'): return err('Customer required')
     if not d.get('items'): return err('Items required')
+    order_date = d.get('order_date', date.today().isoformat())
+    exp_del    = d.get('expected_delivery_date')
+    if exp_del and exp_del < order_date:
+        return err('Expected delivery date cannot be before the order date')
 
     conn = get_db()
     try:
@@ -533,8 +537,8 @@ def create_sales_order():
             cur.execute("""INSERT INTO sales_orders(order_number,customer_id,order_date,expected_delivery_date,
                           notes,status,subtotal,tax_amount,discount_amount,total_amount,created_by)
                           VALUES(%s,%s,%s,%s,%s,'draft',0,0,0,0,%s)""",
-                       (order_num, d['customer_id'], d.get('order_date', date.today().isoformat()),
-                        d.get('expected_delivery_date'), d.get('notes',''), request.current_user['id']))
+                       (order_num, d['customer_id'], order_date,
+                        exp_del, d.get('notes',''), request.current_user['id']))
             so_id = cur.lastrowid
             total = 0
             for item in d['items']:
@@ -579,6 +583,45 @@ def cancel_sales_order(oid):
     if so['status'] in ('delivered','cancelled'): return err(f"Cannot cancel order in status: {so['status']}")
     qry("UPDATE sales_orders SET status='cancelled' WHERE id=%s",(oid,),commit=True)
     return ok({'message': 'Order cancelled'})
+
+@app.route('/api/v1/sales/orders/<int:oid>/dispatch', methods=['POST'])
+@token_required
+@require_write('deliveries')
+def dispatch_sales_order(oid):
+    so = qry("SELECT * FROM sales_orders WHERE id=%s",(oid,),one=True)
+    if not so: return err('Not found',404)
+    if so['status'] != 'confirmed': return err(f"Only confirmed orders can be dispatched. Current status: {so['status']}")
+    qry("UPDATE sales_orders SET status='dispatched' WHERE id=%s",(oid,),commit=True)
+    return ok({'message': 'Order dispatched'})
+
+@app.route('/api/v1/sales/orders/<int:oid>/deliver', methods=['POST'])
+@token_required
+@require_write('deliveries')
+def deliver_sales_order(oid):
+    so = qry("SELECT * FROM sales_orders WHERE id=%s",(oid,),one=True)
+    if not so: return err('Not found',404)
+    if so['status'] not in ('confirmed','dispatched'): return err(f"Order cannot be delivered from status: {so['status']}")
+    qry("UPDATE sales_orders SET status='delivered' WHERE id=%s",(oid,),commit=True)
+    return ok({'message': 'Order delivered'})
+
+# ── DELIVERIES LIST ────────────────────────────────────────────────────
+@app.route('/api/v1/deliveries', methods=['GET'])
+@token_required
+def list_deliveries():
+    page=int(request.args.get('page',1)); ps=int(request.args.get('page_size',15))
+    s=request.args.get('search',''); status=request.args.get('status','')
+    where = ['so.status NOT IN (%s,%s)']
+    args  = ['draft','cancelled']
+    if s:      where.append('(so.order_number LIKE %s OR c.company_name LIKE %s)'); args+=[f'%{s}%']*2
+    if status: where.append('so.status=%s'); args.append(status)
+    w = 'WHERE '+' AND '.join(where) if where else ''
+    items = qry(f"""SELECT so.id, so.order_number, so.order_date, so.expected_delivery_date,
+                    so.total_amount, so.status, so.notes,
+                    c.company_name as customer_name, c.phone as customer_phone
+                    FROM sales_orders so
+                    LEFT JOIN customers c ON so.customer_id=c.id
+                    {w} ORDER BY so.created_at DESC""", args)
+    return ok(paginate_list(items, page, ps))
 
 # ── PURCHASE ORDERS ───────────────────────────────────────────────────
 @app.route('/api/v1/purchase/orders', methods=['GET'])
@@ -916,6 +959,8 @@ def create_user():
 @token_required
 @require_write('users')
 def update_user(uid):
+    if uid == request.current_user.get('id'):
+        return err('You cannot edit your own account from this panel.', 403)
     d=request.get_json() or {}
     conn=get_db()
     try:
@@ -946,6 +991,8 @@ def update_user(uid):
 @token_required
 @require_write('users')
 def patch_user(uid):
+    if uid == request.current_user.get('id'):
+        return err('You cannot deactivate your own account.', 403)
     d=request.get_json() or {}
     if 'is_active' in d:
         qry("UPDATE users SET is_active=%s WHERE id=%s",(d['is_active'],uid),commit=True)

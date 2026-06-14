@@ -265,8 +265,14 @@ const UI = {
               </div>
             </div>
           </div>
-          <button onclick="Auth.logout()" class="btn btn-outline w-100" style="margin-top:.5rem;font-size:.78rem;color:rgba(255,255,255,.45);border-color:rgba(255,255,255,.1);justify-content:center;padding:.45rem;">
-            <i class="fas fa-sign-out-alt"></i> Sign Out
+          <button onclick="Auth.logout()"
+            style="display:flex;align-items:center;justify-content:center;gap:.5rem;width:100%;
+                   margin-top:.45rem;padding:.45rem;border-radius:9px;border:1px solid rgba(255,255,255,.07);
+                   background:transparent;color:rgba(255,255,255,.3);font-size:.75rem;font-weight:500;
+                   cursor:pointer;font-family:inherit;transition:all .15s;"
+            onmouseenter="this.style.background='rgba(239,68,68,.12)';this.style.color='#f87171';this.style.borderColor='rgba(239,68,68,.2)'"
+            onmouseleave="this.style.background='transparent';this.style.color='rgba(255,255,255,.3)';this.style.borderColor='rgba(255,255,255,.07)'">
+            <i class="fas fa-arrow-right-from-bracket" style="font-size:.7rem;"></i> Sign Out
           </button>
         </div>
       </aside>
@@ -565,24 +571,91 @@ function toggleGlobalSearch() {
   if (o) { o.remove(); return; }
   o = document.createElement('div');
   o.id = 'searchOverlay';
-  o.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding-top:10vh;backdrop-filter:blur(4px);';
-  o.innerHTML = `<div style="background:var(--bg-card);border-radius:1rem;width:100%;max-width:560px;margin:0 1rem;box-shadow:0 25px 50px rgba(0,0,0,.25);">
-    <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.75rem;">
-      <i class="fas fa-search" style="color:var(--text-muted)"></i>
-      <input id="gsi" type="text" placeholder="Go to page..." style="flex:1;border:none;outline:none;background:transparent;font-size:.95rem;color:var(--text-primary);font-family:inherit;" autofocus>
-      <kbd style="background:var(--bg-card2);border:1px solid var(--border);padding:.15rem .4rem;border-radius:.3rem;font-size:.72rem;color:var(--text-muted)">Esc</kbd>
-    </div>
-    <div style="padding:1rem;font-size:.825rem;">
-      <div style="font-weight:600;color:var(--text-secondary);margin-bottom:.5rem;">Quick Links</div>
-      <div style="display:flex;flex-wrap:wrap;gap:.5rem;">
-        ${[['Dashboard','/static/dashboard.html'],['Products','/static/pages/products.html'],['Sales Orders','/static/pages/sales-orders.html'],['Purchase Orders','/static/pages/purchase-orders.html'],['Inventory','/static/pages/inventory.html'],['Reports','/static/pages/reports.html']].map(([l,h])=>`<a href="${h}" style="padding:.35rem .75rem;background:var(--bg-card2);border:1px solid var(--border);border-radius:9999px;color:var(--text-secondary);text-decoration:none;font-weight:500;">${l}</a>`).join('')}
+  o.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding-top:8vh;backdrop-filter:blur(6px);animation:gsIn .18s ease;';
+
+  const pages = [
+    ['Dashboard',      '/static/dashboard.html',                'fa-chart-pie',          '#6366f1'],
+    ['Products',       '/static/pages/products.html',           'fa-box',                '#10b981'],
+    ['Sales Orders',   '/static/pages/sales-orders.html',       'fa-file-invoice-dollar','#3b82f6'],
+    ['Customers',      '/static/pages/customers.html',          'fa-users',              '#8b5cf6'],
+    ['Purchase Orders','/static/pages/purchase-orders.html',    'fa-truck',              '#f59e0b'],
+    ['Vendors',        '/static/pages/vendors.html',            'fa-building',           '#ef4444'],
+    ['Inventory',      '/static/pages/inventory.html',          'fa-warehouse',          '#06b6d4'],
+    ['MFG Orders',     '/static/pages/mfg-orders.html',         'fa-cogs',               '#8b5cf6'],
+    ['Bill of Materials','/static/pages/boms.html',             'fa-sitemap',            '#f97316'],
+    ['Stock Ledger',   '/static/pages/stock-ledger.html',       'fa-clipboard-list',     '#10b981'],
+    ['Reports',        '/static/pages/reports.html',            'fa-chart-bar',          '#6366f1'],
+    ['Users',          '/static/pages/users.html',              'fa-users-cog',          '#ef4444'],
+  ];
+
+  o.innerHTML = `
+    <div style="background:var(--bg-card);border-radius:16px;width:100%;max-width:580px;margin:0 1rem;
+                box-shadow:0 30px 60px rgba(0,0,0,.3);overflow:hidden;animation:gsSlide .2s ease;">
+      <!-- Search input row -->
+      <div style="display:flex;align-items:center;gap:.75rem;padding:1rem 1.25rem;
+                  border-bottom:1.5px solid var(--border);">
+        <i class="fas fa-search" style="color:var(--primary);font-size:1rem;flex-shrink:0;"></i>
+        <input id="gsi" type="text" placeholder="Search pages & modules…"
+               style="flex:1;border:none;outline:none;background:transparent;font-size:1rem;
+                      color:var(--text-primary);font-family:inherit;caret-color:var(--primary);"
+               oninput="gsFilter(this.value)" autofocus>
+        <div style="display:flex;align-items:center;gap:.35rem;">
+          <kbd style="background:var(--bg-main);border:1.5px solid var(--border);padding:.2rem .5rem;
+                      border-radius:6px;font-size:.68rem;color:var(--text-muted);font-family:inherit;">Esc</kbd>
+        </div>
       </div>
-    </div>
-  </div>`;
+      <!-- Quick links grid -->
+      <div style="padding:1rem;max-height:55vh;overflow-y:auto;" id="gsResults">
+        <div style="font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+                    color:var(--text-muted);margin-bottom:.65rem;padding:0 .25rem;">Quick Navigation</div>
+        <div id="gsGrid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:.4rem;">
+          ${pages.map(([label,href,icon,color])=>`
+            <a href="${href}" class="gs-item" data-label="${label.toLowerCase()}"
+               style="display:flex;align-items:center;gap:.65rem;padding:.6rem .75rem;
+                      border-radius:10px;background:var(--bg-main);border:1.5px solid transparent;
+                      text-decoration:none;transition:all .15s;color:var(--text-primary);"
+               onmouseenter="this.style.background='var(--bg-card2)';this.style.borderColor='${color}'"
+               onmouseleave="this.style.background='var(--bg-main)';this.style.borderColor='transparent'">
+              <div style="width:30px;height:30px;border-radius:8px;background:${color}20;
+                          display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <i class="fas ${icon}" style="color:${color};font-size:.78rem;"></i>
+              </div>
+              <span style="font-size:.82rem;font-weight:600;">${label}</span>
+            </a>`).join('')}
+        </div>
+        <div id="gsEmpty" style="display:none;padding:2rem;text-align:center;color:var(--text-muted);font-size:.85rem;">
+          <i class="fas fa-search" style="display:block;font-size:1.5rem;opacity:.3;margin-bottom:.5rem;"></i>
+          No matching pages found
+        </div>
+      </div>
+      <!-- Footer hint -->
+      <div style="padding:.6rem 1.25rem;border-top:1px solid var(--border);display:flex;gap:1rem;
+                  font-size:.7rem;color:var(--text-muted);">
+        <span><kbd style="background:var(--bg-main);border:1px solid var(--border);padding:.1rem .35rem;border-radius:4px;margin-right:.3rem;">↑↓</kbd>Navigate</span>
+        <span><kbd style="background:var(--bg-main);border:1px solid var(--border);padding:.1rem .35rem;border-radius:4px;margin-right:.3rem;">Enter</kbd>Open</span>
+        <span><kbd style="background:var(--bg-main);border:1px solid var(--border);padding:.1rem .35rem;border-radius:4px;margin-right:.3rem;">Esc</kbd>Close</span>
+      </div>
+    </div>`;
+
   o.addEventListener('click', e => { if (e.target===o) o.remove(); });
   document.body.appendChild(o);
-  document.addEventListener('keydown', function esc(e) { if(e.key==='Escape'){ o.remove(); document.removeEventListener('keydown',esc); } });
+  document.addEventListener('keydown', function esc(e) {
+    if (e.key==='Escape') { o.remove(); document.removeEventListener('keydown',esc); }
+  });
 }
+
+function gsFilter(val) {
+  const q = val.toLowerCase().trim();
+  const items = document.querySelectorAll('.gs-item');
+  let visible = 0;
+  items.forEach(el => {
+    const match = !q || el.dataset.label.includes(q);
+    el.style.display = match ? '' : 'none';
+    if (match) visible++;
+  });
+  document.getElementById('gsEmpty').style.display = visible ? 'none' : 'block';
+}
+
 document.addEventListener('keydown', e => { if ((e.ctrlKey||e.metaKey) && e.key==='k') { e.preventDefault(); toggleGlobalSearch(); } });
 
 /* ── CSS Animations ───────────────────────────────────────────────── */
@@ -590,6 +663,8 @@ const style = document.createElement('style');
 style.textContent = `
   @keyframes slideInRight { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:translateX(0)} }
   @keyframes slideOutRight { from{opacity:1;transform:translateX(0)} to{opacity:0;transform:translateX(20px)} }
+  @keyframes gsIn    { from{opacity:0} to{opacity:1} }
+  @keyframes gsSlide { from{opacity:0;transform:translateY(-16px) scale(.97)} to{opacity:1;transform:translateY(0) scale(1)} }
 `;
 document.head.appendChild(style);
 

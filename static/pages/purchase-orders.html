@@ -117,6 +117,7 @@ async function loadData(page=1) {
           <td><div class="table-actions">
             ${o.status==='draft'?`<button class="btn btn-sm btn-primary" onclick="confirmPO(${o.id})" title="Confirm"><i class="fas fa-check"></i></button>`:''}
             ${o.status==='confirmed'?`<button class="btn btn-sm btn-success" onclick="receivePO(${o.id})" title="Receive Goods"><i class="fas fa-truck-loading"></i></button>`:''}
+            ${o.status==='fully_received'?`<button class="btn btn-sm" onclick="openPayment(${o.id},'${o.order_number}','${o.vendor?.company_name||'Vendor'}',${o.total_amount||0})" title="Pay Now" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none;"><i class="fas fa-credit-card"></i> Pay</button>`:''}
             ${o.status==='draft'?`<button class="btn btn-sm btn-danger" onclick="cancelPO(${o.id})" title="Cancel"><i class="fas fa-times"></i></button>`:''}
           </div></td>
         </tr>`).join('')}</tbody>
@@ -201,6 +202,222 @@ async function cancelPO(id) {
   try { await API.post(`/purchase/orders/${id}/cancel`, {}); Toast.success('Cancelled'); loadData(currentPage); } catch(e) { Toast.error(e.message); }
 }
 
+/* ── PAYMENT FLOW ──────────────────────────────────────────────────── */
+let _payData = {};
+
+function openPayment(id, orderNum, vendor, amount) {
+  _payData = { id, orderNum, vendor, amount };
+  document.getElementById('pay-step-form').style.display = '';
+  document.getElementById('pay-step-processing').style.display = 'none';
+  document.getElementById('pay-step-success').style.display = 'none';
+
+  document.getElementById('pay-order-num').textContent  = orderNum;
+  document.getElementById('pay-vendor-name').textContent = vendor;
+  document.getElementById('pay-amount-display').textContent = UI.currency(amount);
+  document.getElementById('pay-ref').value = '';
+
+  // reset method selection
+  document.querySelectorAll('.pay-method-card').forEach(c => c.classList.remove('selected'));
+  document.querySelector('.pay-method-card').classList.add('selected');
+
+  document.getElementById('paymentModal').classList.add('show');
+}
+
+function selectPayMethod(el) {
+  document.querySelectorAll('.pay-method-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function closePaymentModal() {
+  document.getElementById('paymentModal').classList.remove('show');
+}
+
+async function processPayment() {
+  const method = document.querySelector('.pay-method-card.selected')?.dataset.method || 'Bank Transfer';
+  const ref    = document.getElementById('pay-ref').value.trim() ||
+                 'TXN' + Date.now().toString().slice(-8);
+
+  // Show processing screen
+  document.getElementById('pay-step-form').style.display = 'none';
+  document.getElementById('pay-step-processing').style.display = '';
+
+  // Simulate processing delay (2 seconds)
+  await new Promise(r => setTimeout(r, 2200));
+
+  // Build success screen
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+  const timeStr = now.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+  const payId   = 'PAY-' + Math.random().toString(36).substring(2,8).toUpperCase();
+
+  document.getElementById('pay-step-processing').style.display = 'none';
+  document.getElementById('pay-step-success').style.display = '';
+
+  document.getElementById('succ-payid').textContent   = payId;
+  document.getElementById('succ-amount').textContent  = UI.currency(_payData.amount);
+  document.getElementById('succ-vendor').textContent  = _payData.vendor;
+  document.getElementById('succ-order').textContent   = _payData.orderNum;
+  document.getElementById('succ-method').textContent  = method;
+  document.getElementById('succ-ref').textContent     = ref;
+  document.getElementById('succ-date').textContent    = `${dateStr} at ${timeStr}`;
+}
+
 </script>
+
+<!-- ── Payment Modal ─────────────────────────────────────────── -->
+<div class="modal" id="paymentModal">
+  <div class="modal-backdrop" onclick="closePaymentModal()"></div>
+  <div class="modal-dialog" style="max-width:480px;width:95vw">
+
+    <!-- STEP 1: Payment Form -->
+    <div id="pay-step-form">
+      <div class="modal-header" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;border-radius:var(--radius) var(--radius) 0 0">
+        <div class="modal-title" style="color:#fff"><i class="fas fa-credit-card" style="margin-right:.5rem"></i>Make Payment</div>
+        <button class="modal-close" onclick="closePaymentModal()" style="color:#fff;opacity:.8">✕</button>
+      </div>
+      <div class="modal-body">
+
+        <!-- Order summary strip -->
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:.85rem 1rem;margin-bottom:1.25rem">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div>
+              <div style="font-size:.72rem;color:#6b7280;text-transform:uppercase;letter-spacing:.07em;font-weight:600">Purchase Order</div>
+              <div style="font-size:1rem;font-weight:700;color:#065f46" id="pay-order-num"></div>
+              <div style="font-size:.8rem;color:#374151;margin-top:.15rem">Vendor: <strong id="pay-vendor-name"></strong></div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-size:.72rem;color:#6b7280;text-transform:uppercase;letter-spacing:.07em;font-weight:600">Amount Due</div>
+              <div style="font-size:1.45rem;font-weight:800;color:#059669" id="pay-amount-display"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Payment method cards -->
+        <div style="margin-bottom:1.1rem">
+          <div style="font-size:.78rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.65rem">Payment Method</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.55rem">
+            <div class="pay-method-card selected" data-method="Bank Transfer" onclick="selectPayMethod(this)">
+              <i class="fas fa-university"></i><span>Bank Transfer</span>
+            </div>
+            <div class="pay-method-card" data-method="UPI" onclick="selectPayMethod(this)">
+              <i class="fas fa-mobile-alt"></i><span>UPI / QR</span>
+            </div>
+            <div class="pay-method-card" data-method="Cheque" onclick="selectPayMethod(this)">
+              <i class="fas fa-money-check-alt"></i><span>Cheque</span>
+            </div>
+            <div class="pay-method-card" data-method="Cash" onclick="selectPayMethod(this)">
+              <i class="fas fa-money-bill-wave"></i><span>Cash</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Reference / transaction ID -->
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Transaction / Reference No. <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
+          <input class="form-control" id="pay-ref" placeholder="e.g. UTR123456789 or leave blank">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closePaymentModal()">Cancel</button>
+        <button class="btn" onclick="processPayment()" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;font-weight:700;min-width:130px">
+          <i class="fas fa-lock" style="margin-right:.4rem;font-size:.8rem"></i>Pay Now
+        </button>
+      </div>
+    </div>
+
+    <!-- STEP 2: Processing -->
+    <div id="pay-step-processing" style="display:none;padding:3rem 2rem;text-align:center">
+      <div style="width:72px;height:72px;border-radius:50%;border:4px solid #e2e8f0;border-top-color:#10b981;animation:spin .8s linear infinite;margin:0 auto 1.5rem"></div>
+      <div style="font-size:1.1rem;font-weight:700;color:var(--text-primary)">Processing Payment</div>
+      <div style="font-size:.85rem;color:var(--text-muted);margin-top:.4rem">Please wait, do not close this window...</div>
+      <div style="display:flex;justify-content:center;gap:1.5rem;margin-top:1.75rem">
+        <div style="font-size:.75rem;color:#10b981"><i class="fas fa-shield-alt"></i> Secure</div>
+        <div style="font-size:.75rem;color:#10b981"><i class="fas fa-lock"></i> Encrypted</div>
+        <div style="font-size:.75rem;color:#10b981"><i class="fas fa-check-circle"></i> Verified</div>
+      </div>
+    </div>
+
+    <!-- STEP 3: Success -->
+    <div id="pay-step-success" style="display:none;padding:2rem;text-align:center">
+      <!-- Animated checkmark -->
+      <div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;margin:0 auto .75rem;animation:popIn .4s cubic-bezier(.175,.885,.32,1.275)">
+        <i class="fas fa-check" style="font-size:2rem;color:#fff"></i>
+      </div>
+      <div style="font-size:1.35rem;font-weight:800;color:#065f46;margin-bottom:.25rem">Payment Successful!</div>
+      <div style="font-size:.85rem;color:#6b7280;margin-bottom:1.5rem">Your payment has been processed and confirmed.</div>
+
+      <!-- Receipt card -->
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:1.1rem 1.25rem;text-align:left;margin-bottom:1.5rem">
+        <div style="font-size:.7rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.85rem;border-bottom:1px dashed #e2e8f0;padding-bottom:.6rem">
+          Payment Receipt
+        </div>
+        <div style="display:grid;gap:.55rem">
+          <div style="display:flex;justify-content:space-between;font-size:.82rem">
+            <span style="color:#6b7280">Payment ID</span>
+            <span style="font-weight:700;color:#059669;font-family:monospace" id="succ-payid"></span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:.82rem">
+            <span style="color:#6b7280">Amount Paid</span>
+            <span style="font-weight:800;color:#0f172a;font-size:.95rem" id="succ-amount"></span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:.82rem">
+            <span style="color:#6b7280">Vendor</span>
+            <span style="font-weight:600;color:#0f172a" id="succ-vendor"></span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:.82rem">
+            <span style="color:#6b7280">PO Number</span>
+            <span style="font-weight:600;color:#6366f1" id="succ-order"></span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:.82rem">
+            <span style="color:#6b7280">Method</span>
+            <span style="font-weight:600;color:#0f172a" id="succ-method"></span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:.82rem">
+            <span style="color:#6b7280">Reference</span>
+            <span style="font-weight:600;color:#0f172a;font-family:monospace" id="succ-ref"></span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:.82rem;border-top:1px dashed #e2e8f0;padding-top:.55rem;margin-top:.15rem">
+            <span style="color:#6b7280">Date & Time</span>
+            <span style="font-weight:600;color:#0f172a" id="succ-date"></span>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" onclick="closePaymentModal(); loadData(currentPage);" style="width:100%">
+        <i class="fas fa-check" style="margin-right:.4rem"></i> Done
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<style>
+/* Payment method cards */
+.pay-method-card {
+  display: flex; align-items: center; gap: .6rem;
+  padding: .65rem .9rem; border-radius: 10px;
+  border: 2px solid #e2e8f0; cursor: pointer;
+  font-size: .82rem; font-weight: 600; color: var(--text-secondary);
+  background: var(--bg-card); transition: all .15s;
+}
+.pay-method-card i { font-size: 1rem; color: #94a3b8; transition: color .15s; }
+.pay-method-card:hover { border-color: #10b981; color: #065f46; }
+.pay-method-card:hover i { color: #10b981; }
+.pay-method-card.selected {
+  border-color: #10b981; background: #f0fdf4; color: #065f46; font-weight: 700;
+  box-shadow: 0 0 0 3px rgba(16,185,129,.12);
+}
+.pay-method-card.selected i { color: #10b981; }
+
+/* Spinner for processing */
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Pop-in for success checkmark */
+@keyframes popIn {
+  0%   { transform: scale(0); opacity: 0; }
+  70%  { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
+}
+</style>
 </body>
 </html>
